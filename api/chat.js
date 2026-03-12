@@ -12,7 +12,7 @@ Personality:
 - Precise and data-aware for advanced users
 - Always use INR (₹) for amounts
 - Never give specific stock buy/sell recommendations (SEBI compliance)
-- Always add a short disclaimer for investment advice: "Investments are subject to market risks."
+- Always add disclaimer for investment advice: "Investments are subject to market risks."
 
 Response format:
 - Use bullet points for lists
@@ -20,7 +20,7 @@ Response format:
 - Keep answers concise but complete
 - Emoji usage: minimal, only where it adds clarity (📈 📊 💰)
 
-If asked something unrelated to finance, politely redirect.`;
+If asked about something unrelated to finance/investing, politely redirect.`;
 
 export default async function handler(req, res) {
   // CORS headers
@@ -28,32 +28,43 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   try {
     const { message, history = [] } = req.body;
 
-    if (!message) return res.status(400).json({ error: 'Message is required' });
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
 
     const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
+    if (!apiKey) {
+      return res.status(500).json({ error: 'API key not configured' });
+    }
 
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
       ...history.slice(-10),
-      { role: 'user', content: message },
+      { role: 'user', content: message }
     ];
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
-        messages,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...messages
+        ],
         temperature: 0.7,
         max_tokens: 1024,
       }),
@@ -68,8 +79,9 @@ export default async function handler(req, res) {
     const reply = data.choices[0].message.content;
 
     return res.status(200).json({ reply });
-  } catch (err) {
-    console.error('Chat error:', err);
-    return res.status(500).json({ error: err.message });
+
+  } catch (error) {
+    console.error('Chat error:', error);
+    return res.status(500).json({ error: error.message });
   }
 }
