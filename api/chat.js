@@ -73,8 +73,16 @@ async function getAllLearned() {
     const items = Array.isArray(data) ? data : [];
     return items.map(item => {
       if (!item?.result) return null;
-      try { return JSON.parse(item.result); } catch { return null; }
-    }).filter(Boolean);
+      try {
+        const parsed = JSON.parse(item.result);
+        // Handle old double-encoded entries (string of a JSON string)
+        if (typeof parsed === 'string') {
+          try { return JSON.parse(parsed); } catch { return null; }
+        }
+        if (typeof parsed === 'object' && parsed !== null) return parsed;
+        return null;
+      } catch { return null; }
+    }).filter(e => e && typeof e === 'object' && Array.isArray(e.keywords));
   } catch { return []; }
 }
 
@@ -94,9 +102,11 @@ function hashKey(str) {
 }
 
 function scoreMatch(query, entry) {
+  const kws = Array.isArray(entry.keywords) ? entry.keywords : [];
+  if (!kws.length) return 0;
   const qw = new Set(query.toLowerCase().split(/\W+/).filter(w => w.length > 3));
-  const hits = entry.keywords.filter(k => qw.has(k)).length;
-  return entry.keywords.length > 0 ? hits / entry.keywords.length : 0;
+  const hits = kws.filter(k => qw.has(k)).length;
+  return hits / kws.length;
 }
 
 async function findBestMatch(query) {
@@ -104,6 +114,7 @@ async function findBestMatch(query) {
   if (!all.length) return null;
   let best = null, bestScore = 0;
   for (const e of all) {
+    if (!e || typeof e !== 'object') continue;
     const s = scoreMatch(query, e);
     if (s > bestScore && s >= 0.25) { bestScore = s; best = e; }
   }
