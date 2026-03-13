@@ -1,208 +1,294 @@
-// GrowwBot — Agent Support Assistant v5.1
-// Compressed KB — fits within Groq free tier 12,000 TPM
+// GrowwBot — Agent Support Assistant v6.0
+// Features: Upstash Redis | Feed & Analyze | Self-Learning | Compressed KB
 
-const SYSTEM_PROMPT = `You are GrowwBot, a Groww customer support assistant for agents.
+// ── Upstash Redis helpers ──────────────────────────────────────────────────
+async function redisCall(path, method = 'GET', body = null) {
+  try {
+    const url  = process.env.UPSTASH_REDIS_REST_URL;
+    const tok  = process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (!url || !tok) return null;
+    const opts = { method, headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' } };
+    if (body !== null) opts.body = JSON.stringify(body);
+    const res  = await fetch(`${url}${path}`, opts);
+    return await res.json();
+  } catch { return null; }
+}
+
+async function redisGet(key) {
+  const r = await redisCall(`/get/${encodeURIComponent(key)}`);
+  if (!r?.result) return null;
+  try { return JSON.parse(r.result); } catch { return r.result; }
+}
+
+async function redisSet(key, value) {
+  await redisCall(`/set/${encodeURIComponent(key)}`, 'POST', JSON.stringify(value));
+}
+
+async function redisDel(key) {
+  await redisCall(`/del/${encodeURIComponent(key)}`, 'POST');
+}
+
+async function redisKeys(pattern) {
+  const r = await redisCall(`/keys/${encodeURIComponent(pattern)}`);
+  return r?.result || [];
+}
+
+async function getAllLearned() {
+  const keys = await redisKeys('kb:*');
+  if (!keys.length) return [];
+  const pipeline = keys.map(k => ['get', k]);
+  const r = await redisCall('/pipeline', 'POST', pipeline);
+  if (!r) return [];
+  return r.map(item => { try { return JSON.parse(item.result); } catch { return null; } }).filter(Boolean);
+}
+
+// ── Keyword utils ─────────────────────────────────────────────────────────
+const STOP = new Set(['the','and','for','are','this','that','with','have','from','will','your','please','note','you','can','our','has','not','its','been','once','after','they','their','which','when','also','then','into','more','what','how','does','would','could','should','was','were','about','there','here','just','like','some','very','well','any','all','but','get','set','new','now','one','two','may','per','its','via','upon']);
+
+function keywords(text) {
+  return [...new Set(
+    text.toLowerCase().split(/\W+/).filter(w => w.length > 3 && !STOP.has(w))
+  )].slice(0, 25);
+}
+
+function hashKey(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
+}
+
+function scoreMatch(query, entry) {
+  const qw = new Set(query.toLowerCase().split(/\W+/).filter(w => w.length > 3));
+  const hits = entry.keywords.filter(k => qw.has(k)).length;
+  return entry.keywords.length > 0 ? hits / entry.keywords.length : 0;
+}
+
+async function findBestMatch(query) {
+  const all = await getAllLearned();
+  if (!all.length) return null;
+  let best = null, bestScore = 0;
+  for (const e of all) {
+    const s = scoreMatch(query, e);
+    if (s > bestScore && s >= 0.25) { bestScore = s; best = e; }
+  }
+  return best;
+}
+
+// ── Groq call ─────────────────────────────────────────────────────────────
+async function callGroq(apiKey, messages, systemPrompt, maxTokens = 700) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      temperature: 0.2,
+      max_tokens: maxTokens,
+    }),
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(`Groq API error: ${e}`); }
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+// ── System prompts ────────────────────────────────────────────────────────
+const CHAT_PROMPT = `You are GrowwBot, a Groww customer support assistant for agents.
 Agents describe a customer issue → return the exact ready-to-send response.
 
 RULES:
 - No emojis. Plain text only.
 - End EVERY response with: "Please feel free to reach out if you need any further assistance."
-- Include exact app paths and links from KB.
-- Only answer Groww/Indian finance topics. Off-topic: "I am trained specifically to assist with Groww platform and investment-related queries. I am unable to assist with this particular request."
-- No preamble like "Here is the response:". Start directly.
-- If unsure: "I would recommend raising this with the concerned team for further assistance."
+- Include Groww app navigation paths and links when relevant.
+- Only answer Groww/Indian finance topics. For unrelated queries: "I am trained specifically to assist with Groww platform and investment-related queries. I am unable to assist with this particular request."
+- No preamble. Start the response directly.
+- If LEARNED KNOWLEDGE is provided below, use it as your PRIMARY source and base your response on it.
 
-EMPATHY RULE — if message contains: angry, upset, furious, frustrated, threatening, escalated, waiting days, cheated, fraud, scam, lost money, unacceptable, terrible service, threatening legal action, wants to complain, GTT fired, position squared off wrongly:
-Open with: "We sincerely apologize for the inconvenience and frustration this situation has caused. We completely understand how distressing this must be, and resolving this is our top priority."
-Then validate feelings → give resolution → reassure funds safe → offer escalation to senior team.
+EMPATHY RULE: If the agent message contains frustration signals (angry, upset, furious, frustrated, threatening, escalated, waiting days, cheated, fraud, scam, unacceptable, lost money, threatening legal), open with: "We sincerely apologize for the inconvenience and frustration this situation has caused. We completely understand how distressing this must be, and resolving this is our top priority." Then validate feelings → resolution → reassure funds safe → offer escalation.`;
 
-FORMAT: Short paragraphs. Numbered steps for navigation only.
+const ANALYZE_PROMPT = `You are a Groww support knowledge base editor.
+Your job is to analyze raw information fed by a support team member and extract it into a clean, structured KB entry.
 
----KNOWLEDGE BASE---
+Given raw input, you MUST return ONLY a valid JSON object (no markdown, no backticks, no preamble) with this exact structure:
+{
+  "topic": "short topic label (e.g. 'New UPI Limit Policy')",
+  "summary": "1-2 sentence summary of what this information is about",
+  "response": "the full, ready-to-send customer-facing response the agent should use, written in Groww support tone — formal, warm, plain text, no emojis, ends with: Please feel free to reach out if you need any further assistance.",
+  "triggers": ["keyword1", "keyword2", "keyword3"],
+  "category": "one of: Settlements, Mutual Funds, IPO, Stocks, F&O, Account & KYC, Market Info, Other"
+}
 
-== SETTLEMENTS & WITHDRAWALS ==
-STOCK SETTLEMENT: T+1 working day. Settled amount in Groww balance ~10 PM. Check: App > Profile > Wallet > All Transactions. Withdraw after 10 AM tomorrow.
-WITHDRAWAL NOT RECEIVED (UTR): Withdrawal processed. UTR: [UTR]. NEFT may take extra time. Contact bank with UTR.
-WITHDRAWAL REVERSED: Bank reversed it; funds back in Groww Balance. Contact bank. Check if IFSC changed — update in bank and Groww app, then re-request.
-WITHDRAWAL CANCEL/REBOOK: App > Profile > Wallet > All Transactions > select transaction > Cancel Withdrawal. Cancel and rebook before 4 PM for same-day.
-10 AM SETTLEMENT: Amount settled. Withdraw available tomorrow at 10 AM.
-INSTANT WITHDRAWAL TIMING: Available 9:30 AM–4:00 PM working days only. After hours → next working day. Money safe.
-SETTLEMENT HOLIDAY: Settlement holiday today. T+1 applies on working days. Amount available after holiday. Check: App > Profile > Wallet > All Transactions.
-RAA MONTH-END: SEBI's RAA policy — excess trading funds moved to registered bank at month-end. Verify: App > Profile > Wallet > All Transactions. https://groww.in/blog/running-account-authorization-how-does-it-work
-RAA QUARTER-END: Same as above, quarter-end. Q2 FY ended 30 Sep 2025. Same link.
-CLOSING BALANCE: Updates before 12 AM. MTF settlement also before 12 AM. Check: App > Profile > Wallet > All Transactions.
-NEGATIVE BALANCE: Settlement charges exceeded available balance. Add funds to bring to zero/positive. Check: App > Profile > Wallet > All Transactions.
-TODAY'S ACTIVITY: Reflects today's trade amounts. Fully settled by ~11:30 PM.
-NEFT/IMPS BENEFICIARY: Bank: AXIS BANK | Account: GROW0[mobile] | IFSC: UTIB0CCH274 | Type: Current | Name: Groww Serv / Next Billion Technology
+IMPORTANT:
+- The 'response' must be written exactly as an agent would send it to a customer.
+- 'triggers' should be 3-8 keywords/phrases a support agent might use when describing this issue.
+- Be concise but complete. Do not invent information — only use what was provided.`;
 
-== MUTUAL FUNDS ==
-HOW TO REDEEM: App > Mutual Funds > Dashboard > fund > Redeem > amount or Redeem All > OTP > confirm. Credited in 3–4 working days.
-REDEEM CANNOT CANCEL: Cannot cancel once placed — already with fund house. Wait for credit. Money safe.
-REDEEM UTR: Processed. UTR: [UTR]. Contact bank with UTR if not received.
-SIP EXPLAINED: Fixed amount at regular intervals. Builds wealth via compounding. Can start, skip (max 3x), or cancel from app.
-SIP NOT VISIBLE: Check: App > MF > Dashboard > fund > Investment Details > Transactions. Refresh: Log in > MF Dashboard > Products and Tools > Import Funds. Updates in ~1 hour.
-SIP SKIP: Need 3–4 working days gap before SIP date. App > MF > Dashboard > SIPs > SIP > Skip Installment. Max 3 skips then auto-cancelled.
-SIP CANNOT PAUSE: Pause not available. Skip up to 3 times. For longer break, cancel and restart. Invested amount stays in fund.
-SIP EDIT DATE/AMOUNT: Editing cancels existing SIP, creates new one — hence cancellation SMS. New SIP starts from next month's updated date.
-SIP SKIPPED AFTER EDIT: This month skipped due to edit. Make one-time lumpsum in same fund if needed.
-SIP 7-DAY CANCELLATION: Cancellation takes up to 7 working days. Invested amount stays in fund.
-SIP 30-DAY GAP RULE: New SIP needs min 30-day gap between first payment and monthly SIP date. E.g., start May 5, date=1st → next deduction July 1. Make lumpsum this month if needed.
-SIP FIRST PAYMENT FAILED: Insufficient balance. SIP set up and continues from next date. Make one-time payment this month if needed.
-CHANGE SIP BANK: Add new bank: App > Profile > Banks and Autopay > Add Another Bank. Set up autopay > switch SIP deductions.
-MF ORDER STATUS: Order in approved status. Flow: Groww → BSE → AMC. NAV depends on when AMC receives funds.
-ELSS LOCK-IN: Each installment locked 3 years from investment date. Full corpus redeemable 3 years after last installment.
-ELSS MISTAKE/CANNOT CANCEL: Cannot cancel once placed. Wait for unit allocation (3–4 days). Redeem only after 3-year lock-in per installment.
-MF P&L: P&L = (Units × Current NAV) − Total Invested. E.g., Rs.50,000 at NAV 10 = 5,000 units; NAV 12 → Rs.60,000 → profit Rs.10,000.
-AUTOPAY DELETE: App > UPI > UPI Autopay > MF Autopay > three dots > Delete Autopay. Affects all linked SIPs.
-SOA TO DEMAT (ONLINE): App > MF > Dashboard > three dots > Upgrade Funds to Demat. Takes ~7 working days.
-SOA TO DEMAT (OFFLINE): Form: https://resources.groww.in/wp-assets/forms/mf-destatementisation-form.pdf. Email to support@groww.in first. Courier to: Regent Insignia, Obeya Tulip 1st Floor, Mahakavi Vemana Rd, Koramangala 4-B Block, Bengaluru 560034. Done in 7–10 working days.
-DEMAT TO SOA: Direct conversion not available. Opt out of Demat: https://groww.in/help/mutual-funds/mf-dashboard/how-to-opt-out-of-demat-based-mutual-fund-investments--17. Redeem and reinvest in SOA format.
-MF SWITCH: Fund A redemption 3–4 days + Fund B investment 3–4 days = ~6–7 days total. Old SIP not auto-cancelled — cancel manually.
-SWITCH CANNOT CANCEL: Cannot cancel once placed. Switch back after completion.
-MF GROWW BALANCE DISABLED: Per SEBI, Groww Balance cannot be used for MF. https://groww.in/blog/sebi-bans-pooling-money-for-mutual-funds
-KRA CONTACT NOT VALIDATED: Validate contact at KRA portal (CVLKRA: https://validate.cvlindia.com/CVLKRAVerification_V1/ | NDML: https://kra.ndml.in/ClientInitiatedKYC-webApp/ | CAMS: https://camskra.com/emvalidation.aspx | NSE: https://www.nsekra.com/ | KARVY: https://www.karvykra.com/KYC_Validation/Default.aspx). Updates in 24–48 hours. Ensure PAN-Aadhaar linked.
+// ── Compressed built-in KB (keyword fallback) ─────────────────────────────
+const BUILTIN = [
+  { k:['settlement','traded today','t+1','10 pm','withdraw after'], r:`Since you traded today, stock settlement follows T+1 (one working day). Settled amount reflects in Groww balance ~10 PM today. Withdrawal available after 10 AM tomorrow.\n\nCheck: App > Profile > Wallet > All Transactions.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['withdrawal reversed','reversal','ifsc','sent back to groww'], r:`Your withdrawal was reversed by your bank; funds returned to Groww Balance. Contact bank for details. If IFSC changed, update in bank records and Groww app, then re-request withdrawal.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['withdrawal not received','utr','not reflected in bank','neft'], r:`Withdrawal processed. UTR: [UTR NUMBER]. If not yet reflected, contact bank with UTR to verify at their end.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['raa','running account authorization','quarter end refund','month end refund'], r:`Under SEBI's RAA policy, excess trading funds are transferred to your registered bank at month/quarter-end. Verify: App > Profile > Wallet > All Transactions.\nDetails: https://groww.in/blog/running-account-authorization-how-does-it-work\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['instant withdrawal','after 4 pm','withdrawal timing'], r:`Instant withdrawals available 9:30 AM–4:00 PM on working days only. After-hours requests process next working day. Funds are completely safe.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['negative balance','groww balance negative'], r:`Balance is negative because settlement charges exceeded available balance. Please add funds to bring balance to zero or positive.\nCheck: App > Profile > Wallet > All Transactions.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['how to redeem','redeem mutual fund','withdraw from fund'], r:`To redeem:\n1. App > Mutual Funds > Dashboard > select fund > Redeem\n2. Enter amount or choose Redeem All\n3. Enter OTP > confirm\nCredited to bank in 3–4 working days.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['sip not visible','sip missing','sip not showing'], r:`SIP completed. Check: App > MF > Dashboard > fund > Investment Details > Transactions.\nTo refresh: MF Dashboard > Products and Tools > Import Funds. Updates in ~1 hour.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['skip sip','sip skip','skip installment'], r:`Can skip if 3–4 working days remain before SIP date. App > MF > Dashboard > SIPs > SIP > Skip Installment. Max 3 skips then SIP auto-cancels.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['elss','lock in','lock-in','3 year lock'], r:`ELSS funds have 3-year lock-in per installment from date of each investment. Full corpus redeemable 3 years after last installment.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['ipo amount blocked','ipo blocked','mandate end date','unblock ipo'], r:`Amount blocked by bank (not debited) pending allotment. Auto-unblocked before mandate end date if not allotted. Check mandate end date in UPI app. Funds completely safe.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['ipo not allotted','not get allotment','ipo rejected'], r:`No allotment received. Blocked amount auto-released before mandate end date. Check mandate end date in UPI app. Funds completely safe.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['ipo allotted','got allotment'], r:`Allotment received. Shares transfer to Demat on listing date before market opens.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['cancel ipo','ipo cancel'], r:`IPO closed — application cannot be cancelled. Wait for allotment. If not allotted, blocked amount auto-released before mandate end date.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['upper circuit','no sellers'], r:`Stock in upper circuit — no sellers, only buyers. Order executes when stock exits upper circuit.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['fno pending','f&o pending','fno activation pending'], r:`F&O account pending. Wait up to 24 hours for activation.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['fno rejected','fno activation rejected','income proof fno'], r:`F&O activation rejected — income proof didn't meet criteria. Re-upload one of:\n- Bank Statement (1 txn ≥ Rs.5,000 in 6 months)\n- ITR (gross income > Rs.90,000)\n- Demat Statement (holdings > Rs.5,000)\n- Salary Slip (gross monthly > Rs.7,500)\n- Form 16 (gross annual > Rs.1,80,000)\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['mtf squared off','negative 5 days'], r:`MTF position squared off — balance was negative for 5+ consecutive days per MTF policy. Maintain adequate funds to avoid square-offs.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['inactive account','account inactive','reactivate'], r:`Account inactive ~1 year. Log in > reactivate on home screen > complete e-sign. Active in 24–48 hours.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['rekyc','re-kyc','kyc blocked','kyc pending'], r:`Complete ReKYC: https://groww.in/onboarding/data-collection?context=REKYC (open from Groww app). Wait ~10 min before clicking. MF investing enabled in 3–4 working days.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['delete account','account deletion','close account'], r:`Deletion request raised. Done in 24–48 hours. Re-register with same PAN/email/mobile after.\nFirst deactivate UPI: App > Groww UPI > UPI Settings > Manage UPI ID > three dots > Deactivate.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['esign','e-sign','account pending','account activation'], r:`E-sign done. Account activation takes ~2 working days. Standard process.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['contract note','brokerage breakdown','trade charges'], r:`Contract note sent to registered email. Open with PAN in capitals.\nAlso: App > Profile > Wallet > All Transactions > settlement > Download Contract Note.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['brokerage fno','fno charges','f&o charges','options brokerage'], r:`Rs.20 per F&O order. Buy + Sell = Rs.40 round-trip.\nhttps://groww.in/pricing | Calculator: https://groww.in/calculators/brokerage-calculator\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['market timing','market hours','market open','market closed'], r:`Stocks (NSE/BSE): https://groww.in/p/stock-market-timings\nCommodity (MCX): https://groww.in/p/commodity-market-timing\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['dividend','not received dividend'], r:`Dividend credited to Demat-linked bank within 35–45 days of record date by company's RTA. Contact company's RTA if not received. RTA details on BSE (www.bseindia.com) or NSE (www.nseindia.com).\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['tpin','cdsl','sell shares error'], r:`TPIN issue is from CDSL's end. Try selling from website www.groww.in or switch internet connection.\n\nPlease feel free to reach out if you need any further assistance.` },
+  { k:['compliance blocked','cdsl blocked','multiple accounts'], r:`Blocked by CDSL. Fill form: https://trygroww.typeform.com/to/ucWfoEru. Reactivated in 24–48 hours.\n\nPlease feel free to reach out if you need any further assistance.` },
+];
 
-== IPO ==
-IPO PAID NOT UPDATED: Application placed. Allotment status updates before allotment date. Funds safe.
-IPO AMOUNT BLOCKED: Amount blocked by bank (not debited). Auto-unblocked before mandate end date if not allotted. Check mandate end date in UPI app.
-IPO NOT ALLOTTED: Allotment not from RTA. Blocked amount auto-released before mandate end date.
-IPO ALLOTTED: Allotment received for [IPO NAME]. Shares transfer to Demat on listing date before market opens.
-IPO ALLOTMENT DATE TODAY: Allotment date is today. RTA announces — status updates by end of day.
-IPO GMP: Grey Market Premium = unofficial pre-listing trading premium. Not SEBI-regulated. Speculative only. Positive = expected listing above issue price.
-IPO CANCEL: IPO closed — cannot cancel. Wait for allotment. If not allotted, blocked amount auto-released.
-IPO VIA ASBA: Net banking > ASBA/IPO section > enter Groww Demat as beneficiary > complete application.
-IPO PARTIAL ALLOTMENT: Received [X] shares. Remaining blocked amount auto-unblocked before mandate end date.
-IPO MULTIPLE APPLICATIONS: SEBI — one application per PAN. Multiple = all rejected. Multiple lots in one order is allowed.
-IPO SHARES NOT VISIBLE: Visible on Stocks Dashboard before listing date. Tradeable only after official listing.
-IPO ALLOTMENT PAYMENT FAILED: If allotted, shares credited on listing date. Pending debit will process before listing.
-IPO CATEGORY: Above Rs.2 lakh → HNI category. Employee category = company employees only. Others → Regular/Retail.
+function matchBuiltin(msg) {
+  const m = msg.toLowerCase();
+  for (const e of BUILTIN) {
+    if (e.k.some(k => m.includes(k))) return e.r;
+  }
+  return null;
+}
 
-== STOCKS ==
-UPPER CIRCUIT: No sellers — only buyers. Orders execute when stock exits upper circuit.
-SUSPENDED STOCK: Exchange surveillance measure — precautionary. Trading resumes once exchange approves. Contact RTA for clarification. Investment safe.
-DELISTED STOCK: Not traded — buy/sell unavailable. Wait for RTA updates. Contact RTA directly.
-HOW TO BUY: App > search stock > Buy > quantity and price > confirm.
-HOW TO SELL: App > Stocks > Holdings > stock > Sell > quantity and price > verify TPIN > confirm.
-AVERAGE PRICE: FIFO on delivery orders. Formula: Total Investment / Total Quantity. Intraday doesn't affect average.
-UPDATE AVERAGE PRICE: App > Holdings > stock > Update Average Price.
-MARKET ORDER PRICE: Market orders execute at best available price. Use limit order for specific price.
-LIMIT ORDER: Executes at limit price or better. Buy ≤ limit. Sell ≥ limit.
-SELL ORDER EXECUTED: Already executed — cannot reverse. Wait for end-of-day settlement.
-LOW LIQUIDITY: Liquidity currently low. Analyze before placing. Funds safe.
-TPIN ISSUE: CDSL-side issue. Try selling from website www.groww.in or switch internet connection.
-CIRCUIT LIMIT SQUARE OFF: RMS policy — intraday squared off if stock breaches 80% of circuit limit. https://groww.in/p/risk-management
-PE RATIO: PE = Market Price / EPS. Compare within same industry only. Not sole basis for decision.
-STOCK SIP: App > search stock > Create Stock SIP. By quantity or amount (amount must exceed LTP). Cannot edit — cancel and recreate. Manage: App > Holdings > Three Dots > Manage SIPs.
-DELIVERY VS INTRADAY: Delivery = hold indefinitely. Intraday = close same day before 3:20 PM (auto square-off). Different charges. https://groww.in/pricing
-OPEN ORDER MODIFY: App > Stocks > Orders > open order > Modify Order.
-BLOCKED FOR CHARGES: Approximate brokerage and taxes for today's trade. Contract note sent to email by end of day. https://groww.in/pricing
-BROKERAGE F&O: Rs.20 per order. Buy Rs.20 + Sell Rs.20 = Rs.40 round-trip. https://groww.in/pricing | https://groww.in/calculators/brokerage-calculator
-1D RETURN: (Today's Close − Yesterday's Close) / Yesterday's Close × 100.
-BTST: Buy Today Sell Tomorrow. T+1 settlement. Not permitted on settlement holidays.
-BTST AUCTION: Amount on hold for BTST auction. Auction details in contract note. Updates after settlement.
-SETTLEMENT TYPES: 1. Intraday — same day, T+1. 2. Delivery — 80% in 30–35 min, 20% by end of day. 3. BTST — T+1.
-P&L REPORT: App > Profile > Reports > Stocks > P&L Report > duration > Download (sent to email). Web: groww.in > same path > Send Email.
-CONTRACT NOTE: Sent to registered email. Open with PAN in capitals. Also: App > Profile > Wallet > All Transactions > settlement > Download Contract Note.
-
-== F&O ==
-F&O PENDING ACTIVATION: Pending — wait up to 24 hours.
-F&O ACTIVATION REJECTED: Income proof didn't meet criteria. Re-upload one of: Bank Statement (1 txn ≥ Rs.5,000 in 6 months) | ITR (gross income > Rs.90,000) | Demat Statement (holdings > Rs.5,000) | Salary Slip (gross monthly > Rs.7,500) | Form 16 (gross annual > Rs.1,80,000).
-F&O DEACTIVATION: App > Profile > Settings > FnO Pause > swipe right. No charges.
-RMS EXPIRY SQUARE OFF (STOCKS): Positions not squared or consented before 1 PM on expiry → auto squared from 1 PM. Unless physical delivery opted. https://groww.in/p/risk-policy
-RMS EXPIRY SQUARE OFF (COMMODITY): 11 PM on expiry day. https://groww.in/p/risk-policy
-STRIKE PRICE REJECTION: Strike too far from spot. Allowed: stocks/commodity ±15%, BANKEX/SENSEX ±2%, MIDCAP ±5%. E.g., spot Rs.180 → range Rs.153–207.
-OPTION PREMIUM: Premium = cost of entering options contract. Standard deduction.
-SPAN/EXPOSURE MARGIN: Blocked for index contracts by exchange. Released to wallet after exit.
-PHYSICAL DELIVERY MARGIN: Blocked to prevent physical delivery. Released after exit. Apply: https://groww.in/physical-settlement (by 4 PM on T-1 day).
-MTF EXPLAINED: Leverage for stocks. You pay haircut %, Groww funds rest (up to 80%). Interest: 14.95% p.a. (~0.05%/day + GST). Mark-to-Market settled daily.
-MTF HAIRCUT CHANGE: Haircut revised → Groww funds less → add the difference. If not topped up, balance may go negative.
-MTF SQUARED OFF (NEGATIVE): Balance was negative 5+ consecutive days → auto squared per MTF policy. Maintain adequate funds.
-MTF CONVERT TO DELIVERY: App > Positions > MTF position > Convert to Delivery. Full purchase value must be in account.
-GTT ORDER ISSUE: System issue caused unexpected GTT execution. Repurchase shares at market price by 10 AM tomorrow. Difference (today's buy vs yesterday's sell price) + charges refunded to Groww Balance within 7 working days.
-LOSS COMPENSATION: Per SEBI and RMS policy, Groww does not compensate for trading losses. All decisions are investor's responsibility. https://groww.in/p/risk-policy
-
-== ACCOUNT & KYC ==
-INACTIVE ACCOUNT: Inactive ~1 year. Log in > reactivate on home screen > e-sign. Active in 24–48 hours.
-REKYC: https://groww.in/onboarding/data-collection?context=REKYC (open from Groww app). Wait ~10 min before clicking. MF investing enabled in 3–4 working days.
-KYC BLOCKED: ReKYC: https://groww.in/onboarding/data-collection?context=REKYC. Active in 3–4 working days.
-AADHAAR-PAN LINK: Check: https://eportal.incometax.gov.in/iec/foservices/#/pre-login/link-aadhaar-status. Status must show "Linked".
-ESIGN COMPLETE: E-sign done. Activation in ~2 working days.
-ESIGN PROCESS: Documents uploaded. Complete e-sign: App > Stocks or MF > Complete Account Setup. Active in 3–4 working days.
-ACCOUNT DELETE: Request raised. Done in 24–48 hours. Can re-register with same PAN, email, mobile.
-CLOSED ACCOUNT: Raise deletion request (24–48 hours). First: App > Groww UPI > UPI Settings > Manage UPI ID > three dots > Deactivate Groww UPI. Then re-register.
-CLOSURE INITIATED: Closure in progress. Wait 3–4 working days then delete and re-register.
-BANK NAME MISMATCH: Bank name [BANK NAME] ≠ PAN name [PAN NAME]. Names must match exactly. Correct through bank or update PAN.
-ADD BANK MANUALLY: App > Profile > Banks and Autopay > Add Another Bank > Enter Bank Details Manually.
-DELETE PRIMARY BANK: Cannot delete primary directly. Add new bank → set as primary → delete old.
-DP AUTH: Takes 24–48 hours. Verify from CDSL account after.
-DDPI DEACTIVATION: groww.in > Profile > Settings > Sell Authorization > Disable DDPI. Fee not refunded.
-TRAI BLOCKED: Blocked by TRAI — contact details validation issue. Confirm if Demat-linked mobile and email are active.
-COMPLIANCE BLOCKED (CDSL): Fill form: https://trygroww.typeform.com/to/ucWfoEru. Reactivated in 24–48 hours.
-INCOME DETAILS UPDATE: App > Profile > Account Details > Personal Details > update income.
-DEMAT IDs: Client ID = last 8 digits. BO ID = full 16 digits. DP ID = first 8 digits. Trading Code (BSE ID) = in profile.
-HUF ACCOUNT: Can open HUF account. Guide: https://groww.in/blog/what-is-huf-and-benefits
-RELOGIN: Re-login to refresh. Updates in ~10 minutes.
-CLEAR CACHE: Settings > App Management > Groww > Storage > Clear Cache. If persists, reinstall app.
-
-== MARKET INFO ==
-MARKET TIMINGS: Stocks (NSE/BSE): https://groww.in/p/stock-market-timings | Commodity (MCX): https://groww.in/p/commodity-market-timing
-MARKET HOLIDAYS: NSE: https://groww.in/p/nse-holidays | MCX: https://www.mcxindia.com/market-operations/trading-survelliance/trading-holidays
-CLOSING PRICE: Updated by exchange at trading day end. Reflects in app before 12 AM.
-NAV: Per-unit value of MF. Calculated daily at market close. Updated every working day after hours.
-NAV APPLICABILITY: NAV based on when AMC receives funds from BSE. Flow: Groww → BSE → AMC.
-DIVIDEND: Credited to Demat-linked bank within 35–45 days of record date. Contact company's RTA if not received. RTA details on BSE (www.bseindia.com) or NSE (www.nseindia.com) > Corporate Information.
-CORPORATE ACTION TIMELINES: Dividend ~30–45d | Bonus ~15–20d | Split ~2–3d | Rights ~15–30d | Buyback ~30–45d.
-SGB: 2.5% p.a. interest paid half-yearly (1.25% each). Credited by RBI to linked bank.
-
-== ESCALATION & TICKETS ==
-TICKET RAISED: Ticket raised. Resolution in 24–48 working hours. Update to registered email.
-CALLBACK: Team will call registered mobile. Keep phone accessible.
-SUPPORT CONTACT: +91-9108800000. Available 24x7.`;
-
+// ── Main handler ──────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
+
+  // ── GET /api/chat?action=list  → list all learned entries ──────────────
+  if (req.method === 'GET') {
+    const action = req.query?.action;
+    if (action === 'list') {
+      const all = await getAllLearned();
+      return res.status(200).json({ count: all.length, entries: all });
+    }
+    return res.status(400).json({ error: 'Unknown action' });
+  }
+
+  // ── DELETE /api/chat  { key }  → delete a learned entry ───────────────
+  if (req.method === 'DELETE') {
+    const { key } = req.body || {};
+    if (!key) return res.status(400).json({ error: 'key required' });
+    await redisDel(key);
+    return res.status(200).json({ deleted: true });
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { message, history = [] } = req.body;
-    if (!message) return res.status(400).json({ error: 'Message is required' });
+    const { message, history = [], action, feedText, feedKey } = req.body || {};
 
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
+    // ── ACTION: feed  → analyze raw info and store in Redis ───────────────
+    if (action === 'feed') {
+      if (!feedText?.trim()) return res.status(400).json({ error: 'feedText required' });
 
-    const messages = [
-      ...history.slice(-6),
-      { role: 'user', content: message }
-    ];
+      const raw = await callGroq(apiKey,
+        [{ role: 'user', content: `Analyze this information and return the JSON KB entry:\n\n${feedText}` }],
+        ANALYZE_PROMPT, 600
+      );
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
-        temperature: 0.2,
-        max_tokens: 750,
-      }),
-    });
+      let parsed;
+      try {
+        const clean = raw.replace(/```json|```/g, '').trim();
+        parsed = JSON.parse(clean);
+      } catch {
+        return res.status(422).json({ error: 'AI could not parse the information. Try adding more context.', raw });
+      }
 
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Groq API error: ${err}`);
+      const key = feedKey || `kb:feed:${hashKey(feedText)}`;
+      const entry = {
+        key,
+        topic:    parsed.topic    || 'Untitled',
+        summary:  parsed.summary  || '',
+        response: parsed.response || '',
+        triggers: parsed.triggers || [],
+        category: parsed.category || 'Other',
+        keywords: keywords((parsed.triggers || []).join(' ') + ' ' + parsed.topic + ' ' + feedText),
+        source:   'feed',
+        timestamp: new Date().toISOString(),
+        hits: 0,
+      };
+      await redisSet(key, entry);
+      return res.status(200).json({ stored: true, entry });
     }
 
-    const data = await response.json();
-    return res.status(200).json({ reply: data.choices[0].message.content });
+    // ── ACTION: teach  → manually store a Q&A ─────────────────────────────
+    if (action === 'teach') {
+      const { question, answer } = req.body;
+      if (!question || !answer) return res.status(400).json({ error: 'question and answer required' });
+      const key = `kb:teach:${hashKey(question)}`;
+      const entry = {
+        key, topic: question, summary: question, response: answer,
+        triggers: [], keywords: keywords(question + ' ' + answer),
+        source: 'manual', timestamp: new Date().toISOString(), hits: 0,
+      };
+      await redisSet(key, entry);
+      return res.status(200).json({ stored: true, entry });
+    }
+
+    // ── CHAT ──────────────────────────────────────────────────────────────
+    if (!message) return res.status(400).json({ error: 'message required' });
+
+    // Priority 1: Redis learned KB
+    const learned = await findBestMatch(message);
+
+    // Priority 2: Built-in KB
+    const builtin = matchBuiltin(message);
+
+    // Build context block
+    let context = '';
+    if (learned) {
+      context += `LEARNED KNOWLEDGE:\nTopic: ${learned.topic}\n${learned.response}\n\n`;
+      // async hit increment
+      redisSet(learned.key, { ...learned, hits: (learned.hits || 0) + 1 }).catch(() => {});
+    } else if (builtin) {
+      context += `REFERENCE KNOWLEDGE:\n${builtin}\n\n`;
+    }
+
+    const userContent = context
+      ? `${context}AGENT QUERY: ${message}`
+      : message;
+
+    const msgs = [...(history.slice(-6)), { role: 'user', content: userContent }];
+    const reply = await callGroq(apiKey, msgs, CHAT_PROMPT, 700);
+
+    // Auto-learn: if no match existed and reply is useful, store it
+    const isNew = !learned && !builtin && reply.length > 80 && !reply.includes('unable to assist');
+    if (isNew) {
+      const key = `kb:auto:${hashKey(message)}`;
+      const entry = {
+        key, topic: message.slice(0, 80), summary: message,
+        response: reply, triggers: [], keywords: keywords(message + ' ' + reply),
+        source: 'auto', timestamp: new Date().toISOString(), hits: 0,
+      };
+      redisSet(key, entry).catch(() => {});
+    }
+
+    return res.status(200).json({
+      reply,
+      source: learned ? 'learned' : builtin ? 'builtin' : 'ai',
+      autoLearned: isNew,
+    });
 
   } catch (error) {
-    console.error('Chat error:', error);
+    console.error('GrowwBot error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
