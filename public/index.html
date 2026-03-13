@@ -472,7 +472,9 @@ async function doFeed(){
     const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feed',question,answer,category})});
     const d=await r.json();
     if(d.error){statusEl.innerHTML=`<div class="status-msg error">❌ ${d.error}</div>`;return;}
-    statusEl.innerHTML=`<div class="status-msg success">✓ Saved! GrowwBot will now return this exact answer for similar questions.</div>`;
+    const replaced=d.replacedKeys?.length||0;
+    const msg=replaced>0?`✓ Updated — replaced ${replaced} old entr${replaced>1?'ies':'y'} with clean keywords. GrowwBot will now use this exact answer.`:'✓ Saved! GrowwBot will now return this exact answer for similar questions.';
+    statusEl.innerHTML=`<div class="status-msg success">${msg}</div>`;
     setTimeout(()=>{document.getElementById('feedQuestion').value='';document.getElementById('feedAnswer').value='';statusEl.innerHTML='';},2500);
   }catch(err){statusEl.innerHTML=`<div class="status-msg error">❌ ${err.message}</div>`;}
   finally{btn.disabled=false;btn.innerHTML='Save to Knowledge Base';}
@@ -514,7 +516,7 @@ function renderKB(){
       </div>
       <div class="kb-entry-cat">${e.category||''}</div>
       <div class="kb-entry-summary">${e.summary||''}</div>
-      <div class="kb-triggers">${(e.triggers||[]).slice(0,6).map(t=>`<span class="kb-trigger">${t}</span>`).join('')}</div>
+      <div class="kb-triggers">${((e.questionKeywords||e.keywords||[]).slice(0,8)).map(t=>`<span class="kb-trigger">${t}</span>`).join('')}</div>
       <div class="kb-meta">
         <span class="kb-date">${new Date(e.timestamp).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>
         <span class="kb-hits">${e.hits||0} hits</span>
