@@ -62,6 +62,21 @@ function extractKeywords(text) {
   )].slice(0, 30);
 }
 
+// Keywords extracted ONLY from the question — used for matching
+function extractQuestionKeywords(question) {
+  // Also expand common synonyms/variants inline
+  const q = question.toLowerCase()
+    .replace(/nri/g, 'nri nonresident')
+    .replace(/f&o|fno|futures/g, 'fno futures options')
+    .replace(/sip/g, 'sip systematic investment')
+    .replace(/kyc/g, 'kyc verification')
+    .replace(/ipo/g, 'ipo listing allotment')
+    .replace(/mtf/g, 'mtf margin funding');
+  return [...new Set(
+    q.split(/\W+/).filter(w => w.length > 2 && !STOP.has(w))
+  )].slice(0, 40);
+}
+
 function hashKey(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
@@ -70,16 +85,24 @@ function hashKey(str) {
 
 // ── Matching — fed answers WIN absolutely ─────────────────────────────────
 function scoreEntry(query, entry) {
-  const qWords = new Set(query.toLowerCase().split(/\W+/).filter(w => w.length > 3));
-  const kws = entry.keywords || [];
+  const qWords = new Set(extractQuestionKeywords(query));
+  // Prefer questionKeywords (question-only) over mixed keywords
+  const kws = Array.isArray(entry.questionKeywords) && entry.questionKeywords.length
+    ? entry.questionKeywords
+    : (entry.keywords || []);
   if (!kws.length) return 0;
+
+  // Keyword overlap score
   const hits = kws.filter(k => qWords.has(k)).length;
-  // Also check if query words appear in the stored question/topic
-  const topicWords = (entry.question || entry.topic || '').toLowerCase();
-  const topicHits = [...qWords].filter(w => topicWords.includes(w)).length;
-  const kwScore  = hits / kws.length;
-  const topScore = qWords.size > 0 ? topicHits / qWords.size : 0;
-  return Math.max(kwScore, topScore * 1.5); // topic match weighted higher
+  const kwScore = hits / Math.max(kws.length, qWords.size);
+
+  // Direct substring match of query words in stored question (strongest signal)
+  const storedQ = (entry.question || entry.topic || '').toLowerCase();
+  const directHits = [...qWords].filter(w => storedQ.includes(w)).length;
+  const directScore = qWords.size > 0 ? directHits / qWords.size : 0;
+
+  // Final score: direct match weighted 2x over keyword overlap
+  return Math.max(kwScore, directScore * 2);
 }
 
 async function findBestMatch(query) {
@@ -210,22 +233,44 @@ export default async function handler(req, res) {
       if (!question?.trim() || !answer?.trim())
         return res.status(400).json({ error: 'Both question and answer are required.' });
 
-      const key = `kb:feed:${hashKey(question.toLowerCase().trim())}`;
+      const normalizedQ = question.toLowerCase().trim();
+      const newKey = `kb:feed:${hashKey(normalizedQ)}`;
+      const newQKws = extractQuestionKeywords(question);
+
+      // Scan ALL existing entries — delete any whose questionKeywords overlap ≥30% with this question
+      // This cleans up old dirty entries (different key, same topic)
+      const allExisting = await getAllLearned();
+      let deletedKeys = [];
+      let inheritedHits = 0;
+      for (const e of allExisting) {
+        const existingKws = Array.isArray(e.questionKeywords) ? e.questionKeywords : (e.keywords || []);
+        if (!existingKws.length) continue;
+        const overlap = newQKws.filter(k => existingKws.includes(k)).length;
+        const score = overlap / Math.max(existingKws.length, newQKws.length);
+        if (score >= 0.3) {
+          // Overlapping entry found — delete it, inherit its hit count
+          await redisDel(e.key);
+          deletedKeys.push(e.key);
+          inheritedHits += (e.hits || 0);
+        }
+      }
+
       const entry = {
-        key,
+        key: newKey,
         question: question.trim(),
         topic:    question.trim(),
         summary:  question.trim(),
         response: answer.trim(),
         triggers: [],
         category: category || 'Other',
-        keywords: extractKeywords(question + ' ' + answer),
+        questionKeywords: newQKws,   // ONLY question words — used for matching
+        keywords: newQKws,           // same — answer words intentionally excluded
         source:   'feed',
         timestamp: new Date().toISOString(),
-        hits: 0,
+        hits: inheritedHits,
       };
-      await redisSet(key, entry);
-      return res.status(200).json({ stored: true, entry });
+      await redisSet(newKey, entry);
+      return res.status(200).json({ stored: true, updated: deletedKeys.length > 0, replacedKeys: deletedKeys, entry });
     }
 
     // ── CHAT ───────────────────────────────────────────────────────────────
@@ -257,7 +302,9 @@ export default async function handler(req, res) {
       const key = `kb:auto:${hashKey(message)}`;
       const entry = {
         key, question: message, topic: message.slice(0, 80), summary: message,
-        response: reply, triggers: [], keywords: extractKeywords(message + ' ' + reply),
+        response: reply, triggers: [],
+        questionKeywords: extractQuestionKeywords(message),
+        keywords: extractQuestionKeywords(message),
         source: 'auto', category: 'Other', timestamp: new Date().toISOString(), hits: 0,
       };
       redisSet(key, entry).catch(() => {});
