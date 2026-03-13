@@ -2,44 +2,80 @@
 // Features: Upstash Redis | Feed & Analyze | Self-Learning | Compressed KB
 
 // ── Upstash Redis helpers ──────────────────────────────────────────────────
-async function redisCall(path, method = 'GET', body = null) {
+// Upstash REST API: values are stored/retrieved as plain strings.
+// We JSON.stringify objects on write and JSON.parse on read — once, consistently.
+
+function upstashHeaders() {
+  return {
+    Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
+}
+function upstashUrl() { return process.env.UPSTASH_REDIS_REST_URL; }
+function upstashReady() { return !!(upstashUrl() && process.env.UPSTASH_REDIS_REST_TOKEN); }
+
+async function redisGet(key) {
+  if (!upstashReady()) return null;
   try {
-    const url  = process.env.UPSTASH_REDIS_REST_URL;
-    const tok  = process.env.UPSTASH_REDIS_REST_TOKEN;
-    if (!url || !tok) return null;
-    const opts = { method, headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' } };
-    if (body !== null) opts.body = JSON.stringify(body);
-    const res  = await fetch(`${url}${path}`, opts);
-    return await res.json();
+    const r = await fetch(`${upstashUrl()}/get/${encodeURIComponent(key)}`, { headers: upstashHeaders() });
+    const d = await r.json();
+    if (!d?.result) return null;
+    return JSON.parse(d.result);       // stored as JSON.stringify(obj)
   } catch { return null; }
 }
 
-async function redisGet(key) {
-  const r = await redisCall(`/get/${encodeURIComponent(key)}`);
-  if (!r?.result) return null;
-  try { return JSON.parse(r.result); } catch { return r.result; }
-}
-
 async function redisSet(key, value) {
-  await redisCall(`/set/${encodeURIComponent(key)}`, 'POST', JSON.stringify(value));
+  if (!upstashReady()) return;
+  try {
+    // Upstash /set/key — body must be a JSON array: ["SET", key, value]
+    // Simplest correct approach: use the pipeline endpoint with a single SET command
+    await fetch(`${upstashUrl()}/pipeline`, {
+      method: 'POST',
+      headers: upstashHeaders(),
+      body: JSON.stringify([['set', key, JSON.stringify(value)]]),
+    });
+  } catch {}
 }
 
 async function redisDel(key) {
-  await redisCall(`/del/${encodeURIComponent(key)}`, 'POST');
+  if (!upstashReady()) return;
+  try {
+    await fetch(`${upstashUrl()}/pipeline`, {
+      method: 'POST',
+      headers: upstashHeaders(),
+      body: JSON.stringify([['del', key]]),
+    });
+  } catch {}
 }
 
 async function redisKeys(pattern) {
-  const r = await redisCall(`/keys/${encodeURIComponent(pattern)}`);
-  return r?.result || [];
+  if (!upstashReady()) return [];
+  try {
+    const r = await fetch(`${upstashUrl()}/keys/${encodeURIComponent(pattern)}`, { headers: upstashHeaders() });
+    const d = await r.json();
+    return Array.isArray(d?.result) ? d.result : [];
+  } catch { return []; }
 }
 
 async function getAllLearned() {
   const keys = await redisKeys('kb:*');
   if (!keys.length) return [];
-  const pipeline = keys.map(k => ['get', k]);
-  const r = await redisCall('/pipeline', 'POST', pipeline);
-  if (!r) return [];
-  return r.map(item => { try { return JSON.parse(item.result); } catch { return null; } }).filter(Boolean);
+  try {
+    // Fetch all values in one pipeline request
+    const commands = keys.map(k => ['get', k]);
+    const r = await fetch(`${upstashUrl()}/pipeline`, {
+      method: 'POST',
+      headers: upstashHeaders(),
+      body: JSON.stringify(commands),
+    });
+    const data = await r.json();
+    // Upstash pipeline returns an array of {result, error} objects
+    const items = Array.isArray(data) ? data : [];
+    return items.map(item => {
+      if (!item?.result) return null;
+      try { return JSON.parse(item.result); } catch { return null; }
+    }).filter(Boolean);
+  } catch { return []; }
 }
 
 // ── Keyword utils ─────────────────────────────────────────────────────────
