@@ -209,7 +209,7 @@ textarea.feed-ta::placeholder{color:var(--text3);}
       <div class="brand-icon">
         <svg viewBox="0 0 20 20" fill="none"><polyline points="2,14 6,9 10,11 14,5 18,7" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <span class="brand-name">Groww<span>Bot</span><span>v6.0</span></span>
+      <span class="brand-name">Groww<span>Bot</span></span>
     </div>
     <div class="header-right">
       <span class="online"><span class="pulse"></span>Online</span>
@@ -301,18 +301,32 @@ textarea.feed-ta::placeholder{color:var(--text3);}
     </div>
     <div class="modal-body">
       <div class="feed-info">
-        <strong>How it works:</strong> Paste any raw information — a new policy, process update, internal note, or email. The AI will analyze it, extract a structured KB entry, and store it in Redis. GrowwBot will use it in future responses.
+        <strong>How it works:</strong> Enter the exact customer question and the exact answer the agent should send. GrowwBot will return this answer <strong>verbatim</strong> whenever a similar question is asked — the AI will not override it.
       </div>
-      <label class="feed-label">Raw Information</label>
-      <textarea class="feed-ta" id="feedText" placeholder="Paste new policy, process update, or any information here...&#10;&#10;Example: 'From 1st Jan 2025, SIP modifications will take effect within 2 working days instead of the current 7 working days. This applies to all SIP types — mutual fund, stocks, and ETFs.'"></textarea>
-      <div class="feed-actions">
-        <button class="btn-primary" id="feedBtn" onclick="doFeed()">
-          Analyze &amp; Save to KB
-        </button>
+
+      <label class="feed-label">Customer Question <span style="color:var(--danger)">*</span></label>
+      <textarea class="feed-ta" id="feedQuestion" rows="2" style="min-height:60px;margin-bottom:12px" placeholder="e.g. Does Groww support NRI account opening?"></textarea>
+
+      <label class="feed-label">Exact Answer to Send <span style="color:var(--danger)">*</span></label>
+      <textarea class="feed-ta" id="feedAnswer" rows="5" style="min-height:110px" placeholder="e.g. Thank you for your interest. We're not supporting NRI onboarding at the moment, but we will let you know as soon as this service is available."></textarea>
+
+      <label class="feed-label" style="margin-top:12px">Category (optional)</label>
+      <select id="feedCategory" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:7px;padding:8px 10px;font-family:Inter,sans-serif;font-size:13px;outline:none;margin-bottom:4px;">
+        <option value="Other">Other</option>
+        <option value="Settlements">Settlements</option>
+        <option value="Mutual Funds">Mutual Funds</option>
+        <option value="IPO">IPO</option>
+        <option value="Stocks">Stocks</option>
+        <option value="F&O">F&amp;O</option>
+        <option value="Account & KYC">Account &amp; KYC</option>
+        <option value="Market Info">Market Info</option>
+      </select>
+
+      <div class="feed-actions" style="margin-top:14px">
+        <button class="btn-primary" id="feedBtn" onclick="doFeed()">Save to Knowledge Base</button>
         <button class="btn-secondary" onclick="closeOverlay('feedOverlay')">Cancel</button>
       </div>
       <div id="feedStatus"></div>
-      <div id="feedResult"></div>
     </div>
   </div>
 </div>
@@ -437,38 +451,31 @@ function closeIfBg(e,id){if(e.target.id===id)closeOverlay(id);}
 
 // ── Feed ──────────────────────────────────────────────────────────────────
 function openFeed(){
-  document.getElementById('feedText').value='';
+  document.getElementById('feedQuestion').value='';
+  document.getElementById('feedAnswer').value='';
   document.getElementById('feedStatus').innerHTML='';
-  document.getElementById('feedResult').innerHTML='';
   openOverlay('feedOverlay');
-  setTimeout(()=>document.getElementById('feedText').focus(),100);
+  setTimeout(()=>document.getElementById('feedQuestion').focus(),100);
 }
 
 async function doFeed(){
-  const text=document.getElementById('feedText').value.trim();
-  if(!text)return;
+  const question=document.getElementById('feedQuestion').value.trim();
+  const answer=document.getElementById('feedAnswer').value.trim();
+  const category=document.getElementById('feedCategory').value;
+  if(!question){document.getElementById('feedStatus').innerHTML='<div class="status-msg error">❌ Please enter the customer question.</div>';return;}
+  if(!answer){document.getElementById('feedStatus').innerHTML='<div class="status-msg error">❌ Please enter the exact answer to send.</div>';return;}
   const btn=document.getElementById('feedBtn');
   const statusEl=document.getElementById('feedStatus');
-  const resultEl=document.getElementById('feedResult');
-  btn.disabled=true;btn.innerHTML=`<span class="spinner"></span>Analyzing...`;
-  statusEl.innerHTML='';resultEl.innerHTML='';
+  btn.disabled=true;btn.innerHTML=`<span class="spinner"></span>Saving...`;
+  statusEl.innerHTML='';
   try{
-    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feed',feedText:text})});
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feed',question,answer,category})});
     const d=await r.json();
     if(d.error){statusEl.innerHTML=`<div class="status-msg error">❌ ${d.error}</div>`;return;}
-    const e=d.entry;
-    resultEl.innerHTML=`
-      <div class="feed-result">
-        <div class="topic">${e.topic}</div>
-        <div class="cat">${e.category}</div>
-        <div class="summary">${e.summary}</div>
-        <div class="feed-label" style="margin-bottom:4px">Ready-to-send response:</div>
-        <div class="response-preview">${e.response}</div>
-        <div class="triggers">${(e.triggers||[]).map(t=>`<span class="trigger">${t}</span>`).join('')}</div>
-      </div>`;
-    statusEl.innerHTML=`<div class="status-msg success">✓ Saved to knowledge base. GrowwBot will now use this information.</div>`;
+    statusEl.innerHTML=`<div class="status-msg success">✓ Saved! GrowwBot will now return this exact answer for similar questions.</div>`;
+    setTimeout(()=>{document.getElementById('feedQuestion').value='';document.getElementById('feedAnswer').value='';statusEl.innerHTML='';},2500);
   }catch(err){statusEl.innerHTML=`<div class="status-msg error">❌ ${err.message}</div>`;}
-  finally{btn.disabled=false;btn.innerHTML='Analyze &amp; Save to KB';}
+  finally{btn.disabled=false;btn.innerHTML='Save to Knowledge Base';}
 }
 
 // ── KB Viewer ─────────────────────────────────────────────────────────────
