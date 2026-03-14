@@ -126,15 +126,6 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
 .status-msg.err{background:rgba(204,68,68,.08);color:var(--danger);border:1px solid rgba(204,68,68,.2);}
 .spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.22);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px;}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* PDF */
-.drop-zone{border:2px dashed var(--border2);border-radius:10px;padding:26px 20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px;}
-.drop-zone:hover,.drop-zone.drag{border-color:var(--accent);background:var(--accent-bg);}
-.drop-zone p{font-size:12.5px;color:var(--text2);margin:8px 0 3px;}.drop-zone span{font-size:11px;color:var(--text3);}
-.pdf-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
-.pdf-item{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;gap:10px;}
-.pdf-item-name{font-size:12.5px;font-weight:500;}.pdf-item-meta{font-size:10.5px;color:var(--text2);margin-top:2px;}
-.pdf-del{background:none;border:none;color:var(--text3);cursor:pointer;padding:3px 8px;border-radius:5px;font-size:11px;transition:all .15s;white-space:nowrap;}
-.pdf-del:hover{color:var(--danger);background:rgba(204,68,68,.07);}
 /* KB */
 .kb-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;flex-wrap:wrap;gap:8px;}
 .kb-filters{display:flex;gap:5px;flex-wrap:wrap;}
@@ -180,7 +171,6 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
   <div class="hdr-r">
     <span class="online"><span class="pulse"></span>Online</span>
     <button class="hbtn" onclick="openFeed()" title="Feed Q&A">&#9889;</button>
-    <button class="hbtn" onclick="openPDF()" title="Upload PDF">&#128196;</button>
     <button class="hbtn" onclick="openKB()" title="Knowledge base">&#128218;</button>
     <button class="hbtn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme"></button>
   </div>
@@ -188,7 +178,6 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
 <aside class="sidebar" id="sidebar">
   <div class="sb-label" style="margin-top:0">Knowledge</div>
   <button class="sb-act p" onclick="openFeed()"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/></svg>Feed Q&amp;A</button>
-  <button class="sb-act s" onclick="openPDF()"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/></svg>Upload PDF</button>
   <button class="sb-act s" onclick="openKB()"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492z"/></svg>Knowledge Base</button>
   <div class="sb-div"></div>
   <div class="sb-label">Settlements</div>
@@ -292,7 +281,7 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
     <div class="welcome" id="welcome">
       <div class="w-icon"><svg viewBox="0 0 28 28" fill="none"><polyline points="3,20 8,13 14,16 20,7 25,10" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <h1>Groww<span>Bot</span></h1>
-      <p>Describe the customer issue for a ready-to-send response. Use &#9889; to feed Q&amp;A or &#128196; to upload your PDF knowledge base.</p>
+      <p>Describe the customer issue for a ready-to-send response. Use &#9889; to feed Q&amp;A pairs directly into the knowledge base.</p>
       <div class="chips">
         <span class="chip" onclick="ask('Customer traded today and wants to withdraw')">Settlement</span>
         <span class="chip" onclick="ask('Customer IPO amount blocked in bank')">IPO blocked</span>
@@ -341,23 +330,6 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
     </div>
   </div>
 </div>
-<!-- PDF Modal -->
-<div class="overlay hidden" id="pdfOverlay" onclick="closeIfBg(event,'pdfOverlay')">
-  <div class="modal">
-    <div class="modal-hdr"><h2>&#128196; PDF Knowledge Base</h2><button class="modal-close" onclick="closeOverlay('pdfOverlay')">&#10005;</button></div>
-    <div class="modal-body">
-      <div class="info-box"><strong>How it works:</strong> Upload your Groww support PDF (policies, SOPs, FAQs). Text is extracted <strong>server-side on Vercel</strong> using pdf-parse, chunked into sections, and stored in <strong>Neon Postgres</strong> with full-text search. GrowwBot searches these sections before every AI response. Multiple PDFs supported &#x2022; Max 14MB each.</div>
-      <div class="drop-zone" id="dropZone" onclick="document.getElementById('pdfInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:block;width:36px;height:36px;margin:0 auto;color:var(--text3);"><path d="M12 16V8m0 0-3 3m3-3 3 3M20 16.7A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <p>Click to upload or drag &amp; drop a PDF</p>
-        <span>PDFs up to 14MB &#x2022; Text extracted server-side on Vercel</span>
-      </div>
-      <input type="file" id="pdfInput" accept=".pdf" style="display:none" onchange="handlePdf(event)">
-      <div id="pdfStatus"></div>
-      <div class="pdf-list" id="pdfList"></div>
-    </div>
-  </div>
-</div>
 <!-- KB Modal -->
 <div class="overlay hidden" id="kbOverlay" onclick="closeIfBg(event,'kbOverlay')">
   <div class="modal wide">
@@ -376,161 +348,209 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
     </div>
   </div>
 </div>
-<!-- PDF processing is server-side — no PDF.js needed -->
 <script>
-// PDF processing is done server-side via /api/upload — no PDF.js needed in browser
 const SUN=`<svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4.22 1.78a1 1 0 011.42 1.42l-.71.7a1 1 0 11-1.41-1.41l.7-.71zM18 9a1 1 0 110 2h-1a1 1 0 110-2h1zM3 10a1 1 0 01-1 1H1a1 1 0 110-2h1a1 1 0 011 1zm13.95 4.22a1 1 0 010 1.41l-.71.71a1 1 0 11-1.42-1.41l.71-.71a1 1 0 011.41 0zM10 16a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.07 15.93a1 1 0 01-1.41 1.41l-.71-.7a1 1 0 111.41-1.42l.71.71zM4 10a1 1 0 01-1 1H2a1 1 0 110-2h1a1 1 0 011 1zm6-4a4 4 0 100 8 4 4 0 000-8z"/></svg>`;
 const MOON=`<svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>`;
-(function(){const t=localStorage.getItem('gb-theme')||'dark';document.documentElement.setAttribute('data-theme',t);document.getElementById('themeBtn').innerHTML=t==='dark'?SUN:MOON;})();
-function toggleTheme(){const c=document.documentElement.getAttribute('data-theme'),n=c==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);localStorage.setItem('gb-theme',n);document.getElementById('themeBtn').innerHTML=n==='dark'?SUN:MOON;}
+const CPY=`<svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/></svg>`;
+const CHK=`<svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
+
+// ── Theme ──────────────────────────────────────────────────────────────────
+(function(){
+  var t=localStorage.getItem('gb-theme')||'dark';
+  document.documentElement.setAttribute('data-theme',t);
+  document.getElementById('themeBtn').innerHTML=t==='dark'?SUN:MOON;
+})();
+function toggleTheme(){
+  var c=document.documentElement.getAttribute('data-theme'),n=c==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',n);
+  localStorage.setItem('gb-theme',n);
+  document.getElementById('themeBtn').innerHTML=n==='dark'?SUN:MOON;
+}
+
+// ── Mobile drawer ──────────────────────────────────────────────────────────
 function openDrawer(){
-  const db=document.getElementById('drawerBody');
+  var db=document.getElementById('drawerBody');
   db.innerHTML=document.getElementById('sidebar').innerHTML;
-  db.querySelectorAll('.sq').forEach(b=>{const o=b.getAttribute('onclick');if(o)b.setAttribute('onclick',o.replace('ask(','_da('));});
+  db.querySelectorAll('.sq').forEach(function(b){
+    var o=b.getAttribute('onclick');
+    if(o) b.setAttribute('onclick',o.replace('ask(','_da('));
+  });
   document.getElementById('drawer').classList.add('open');
   document.getElementById('dOverlay').classList.add('open');
   document.body.style.overflow='hidden';
 }
-function closeDrawer(){document.getElementById('drawer').classList.remove('open');document.getElementById('dOverlay').classList.remove('open');document.body.style.overflow='';}
-function _da(q){closeDrawer();setTimeout(()=>ask(q),80);}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('dOverlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+function _da(q){closeDrawer();setTimeout(function(){ask(q);},80);}
+
+// ── Input helpers ──────────────────────────────────────────────────────────
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,110)+'px';}
 function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
-function ask(q){const i=document.getElementById('inp');i.value=q;autoResize(i);sendMsg();}
+function ask(q){var i=document.getElementById('inp');i.value=q;autoResize(i);sendMsg();}
+
+// ── Markdown renderer ──────────────────────────────────────────────────────
 function fmt(t){
-  let h=t;
+  var h=t;
   h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
   h=h.replace(/`(.+?)`/g,'<code>$1</code>');
-  h=h.replace(/((?:^\d+\.\s.+
-?)+)/gm,b=>`<ol>${b.trim().split('
-').map(l=>`<li>${l.replace(/^\d+\.\s/,'')}</li>`).join('')}</ol>`);
-  h=h.replace(/((?:^[-*]\s.+
-?)+)/gm,b=>`<ul>${b.trim().split('
-').map(l=>`<li>${l.replace(/^[-*]\s/,'')}</li>`).join('')}</ul>`);
-  return h.split(/
-
-+/).map(p=>{p=p.trim();if(!p)return '';if(/^<(ul|ol)/.test(p))return p;return `<p>${p.replace(/
-/g,'<br>')}</p>`;}).join('');
+  // numbered lists
+  h=h.replace(/((?:^\d+\.\s.+\n?)+)/gm,function(b){
+    return '<ol>'+b.trim().split('\n').map(function(l){return '<li>'+l.replace(/^\d+\.\s/,'')+'</li>';}).join('')+'</ol>';
+  });
+  // bullet lists
+  h=h.replace(/((?:^[-*]\s.+\n?)+)/gm,function(b){
+    return '<ul>'+b.trim().split('\n').map(function(l){return '<li>'+l.replace(/^[-*]\s/,'')+'</li>';}).join('')+'</ul>';
+  });
+  return h.split(/\n\n+/).map(function(p){
+    p=p.trim();
+    if(!p) return '';
+    if(/^<(ul|ol)/.test(p)) return p;
+    return '<p>'+p.replace(/\n/g,'<br>')+'</p>';
+  }).join('');
 }
 function ts(){return new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
-const CPY=`<svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/></svg>`;
-const CHK=`<svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>`;
-function doCopy(btn,raw){const ok=()=>{btn.innerHTML=CHK+' Copied';btn.classList.add('ok');setTimeout(()=>{btn.innerHTML=CPY+' Copy';btn.classList.remove('ok');},1800);};const fb=()=>{try{const ta=document.createElement('textarea');ta.value=raw;ta.style.cssText='position:fixed;top:-9999px;';document.body.appendChild(ta);ta.select();document.execCommand('copy')?ok():null;document.body.removeChild(ta);}catch{}};navigator.clipboard?.writeText(raw).then(ok).catch(fb)||fb();}
-let history=[],busy=false;
+
+// ── Copy ───────────────────────────────────────────────────────────────────
+function doCopy(btn,raw){
+  var ok=function(){btn.innerHTML=CHK+' Copied';btn.classList.add('ok');setTimeout(function(){btn.innerHTML=CPY+' Copy';btn.classList.remove('ok');},1800);};
+  var fb=function(){try{var ta=document.createElement('textarea');ta.value=raw;ta.style.cssText='position:fixed;top:-9999px;';document.body.appendChild(ta);ta.select();document.execCommand('copy')?ok():null;document.body.removeChild(ta);}catch(e){}};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(raw).then(ok).catch(fb);}else{fb();}
+}
+
+// ── Chat state ─────────────────────────────────────────────────────────────
+var history=[],busy=false;
+
 function appendMsg(role,rawText,src){
-  document.getElementById('welcome')?.remove();
-  const c=document.getElementById('msgs'),row=document.createElement('div');
+  document.getElementById('welcome')&&document.getElementById('welcome').remove();
+  var c=document.getElementById('msgs'),row=document.createElement('div');
   row.className='msg-row '+role;
-  const html=role==='bot'?fmt(rawText):rawText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/
-/g,'<br>');
-  let meta=`<span class="msg-time">${ts()}</span>`;
-  if(role==='bot'){const sid='_'+Date.now()+'_'+Math.random().toString(36).slice(2);window[sid]=rawText;const L={learned:'&#10022; Learned',builtin:'&#9670; Built-in',ai:'&#9672; AI',auto:'&#9679; Auto',pdf:'&#9671; PDF'};const badge=L[src]?`<span class="src-badge ${src}">${L[src]}</span>`:'';meta=`<button class="copy-btn" onclick="doCopy(this,window['${sid}'])">${CPY} Copy</button>${badge}${meta}`;}
-  row.innerHTML=`<div class="av">${role==='bot'?'GB':'You'}</div><div class="msg-body"><div class="bubble">${html}</div><div class="msg-meta">${meta}</div></div>`;
+  var escaped=rawText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  var html=role==='bot'?fmt(rawText):escaped;
+  var meta='<span class="msg-time">'+ts()+'</span>';
+  if(role==='bot'){
+    var sid='_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    window[sid]=rawText;
+    var labels={learned:'&#10022; Learned',builtin:'&#9670; Built-in',ai:'&#9672; AI',auto:'&#9679; Auto',pdf:'&#9671; PDF'};
+    var badge=labels[src]?'<span class="src-badge '+src+'">'+labels[src]+'</span>':'';
+    meta='<button class="copy-btn" onclick="doCopy(this,window[\''+sid+'\'])">'+CPY+' Copy</button>'+badge+meta;
+  }
+  row.innerHTML='<div class="av">'+(role==='bot'?'GB':'You')+'</div><div class="msg-body"><div class="bubble">'+html+'</div><div class="msg-meta">'+meta+'</div></div>';
   c.appendChild(row);c.scrollTop=c.scrollHeight;
 }
-function showTyping(){const c=document.getElementById('msgs'),r=document.createElement('div');r.className='typing-row';r.id='typing';r.innerHTML=`<div class="av" style="background:var(--accent);color:#fff;font-size:10px;font-weight:600">GB</div><div class="typing-bub"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>`;c.appendChild(r);c.scrollTop=c.scrollHeight;}
-function removeTyping(){document.getElementById('typing')?.remove();}
+function showTyping(){
+  var c=document.getElementById('msgs'),r=document.createElement('div');
+  r.className='typing-row';r.id='typing';
+  r.innerHTML='<div class="av" style="background:var(--accent);color:#fff;font-size:10px;font-weight:600">GB</div><div class="typing-bub"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
+  c.appendChild(r);c.scrollTop=c.scrollHeight;
+}
+function removeTyping(){var t=document.getElementById('typing');if(t)t.remove();}
+
 async function sendMsg(){
-  if(busy)return;const inp=document.getElementById('inp'),text=inp.value.trim();if(!text)return;
-  inp.value='';inp.style.height='auto';busy=true;document.getElementById('sendBtn').disabled=true;
-  appendMsg('user',text);history.push({role:'user',content:text});showTyping();
+  if(busy)return;
+  var inp=document.getElementById('inp'),text=inp.value.trim();
+  if(!text)return;
+  inp.value='';inp.style.height='auto';
+  busy=true;document.getElementById('sendBtn').disabled=true;
+  appendMsg('user',text);
+  history.push({role:'user',content:text});
+  showTyping();
   try{
-    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:history.slice(-6)})});
-    const d=await r.json();removeTyping();
-    const reply=d.error?`Error: ${d.error}`:d.reply;
-    const src=d.autoLearned?'auto':(d.source||'ai');
+    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:history.slice(-6)})});
+    var d=await r.json();
+    removeTyping();
+    var reply=d.error?'Error: '+d.error:d.reply;
+    var src=d.autoLearned?'auto':(d.source||'ai');
     appendMsg('bot',reply,src);
     if(!d.error){history.push({role:'assistant',content:reply});if(history.length>20)history=history.slice(-20);}
   }catch(e){removeTyping();appendMsg('bot','Connection error. Please try again.');}
-  busy=false;document.getElementById('sendBtn').disabled=false;document.getElementById('inp').focus();
+  busy=false;document.getElementById('sendBtn').disabled=false;
+  document.getElementById('inp').focus();
 }
+
+// ── Modals ─────────────────────────────────────────────────────────────────
 function openOverlay(id){document.getElementById(id).classList.remove('hidden');}
 function closeOverlay(id){document.getElementById(id).classList.add('hidden');}
 function closeIfBg(e,id){if(e.target.id===id)closeOverlay(id);}
-function openFeed(){document.getElementById('feedQ').value='';document.getElementById('feedA').value='';document.getElementById('feedStatus').innerHTML='';openOverlay('feedOverlay');setTimeout(()=>document.getElementById('feedQ').focus(),100);}
+
+// ── Feed Q&A ───────────────────────────────────────────────────────────────
+function openFeed(){
+  document.getElementById('feedQ').value='';
+  document.getElementById('feedA').value='';
+  document.getElementById('feedStatus').innerHTML='';
+  openOverlay('feedOverlay');
+  setTimeout(function(){document.getElementById('feedQ').focus();},100);
+}
 async function doFeed(){
-  const q=document.getElementById('feedQ').value.trim(),a=document.getElementById('feedA').value.trim(),cat=document.getElementById('feedCat').value,st=document.getElementById('feedStatus');
+  var q=document.getElementById('feedQ').value.trim();
+  var a=document.getElementById('feedA').value.trim();
+  var cat=document.getElementById('feedCat').value;
+  var st=document.getElementById('feedStatus');
   if(!q){st.innerHTML='<div class="status-msg err">Please enter the customer question.</div>';return;}
   if(!a){st.innerHTML='<div class="status-msg err">Please enter the exact answer.</div>';return;}
-  const btn=document.getElementById('feedBtn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Saving...';st.innerHTML='';
+  var btn=document.getElementById('feedBtn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Saving...';st.innerHTML='';
   try{
-    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feed',question:q,answer:a,category:cat})});
-    const d=await r.json();
-    if(d.error){st.innerHTML=`<div class="status-msg err">${d.error}</div>`;return;}
-    const rep=d.replacedKeys?.length||0,tc=d.triggerCount||0;
-    st.innerHTML=`<div class="status-msg ok">${rep?`&#10003; Updated — replaced ${rep} old entry. `:'&#10003; Saved. '}${tc} trigger phrases stored.</div>`;
-    setTimeout(()=>{document.getElementById('feedQ').value='';document.getElementById('feedA').value='';st.innerHTML='';},3000);
-  }catch(e){st.innerHTML=`<div class="status-msg err">${e.message}</div>`;}
+    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feed',question:q,answer:a,category:cat})});
+    var d=await r.json();
+    if(d.error){st.innerHTML='<div class="status-msg err">'+d.error+'</div>';return;}
+    var rep=d.replacedKeys?d.replacedKeys.length:0,tc=d.triggerCount||0;
+    st.innerHTML='<div class="status-msg ok">'+(rep?'&#10003; Updated &mdash; replaced '+rep+' old entry. ':'&#10003; Saved. ')+tc+' trigger phrases stored.</div>';
+    setTimeout(function(){document.getElementById('feedQ').value='';document.getElementById('feedA').value='';st.innerHTML='';},3000);
+  }catch(e){st.innerHTML='<div class="status-msg err">'+e.message+'</div>';}
   finally{btn.disabled=false;btn.innerHTML='Save to Knowledge Base';}
 }
-function onDragOver(e){e.preventDefault();document.getElementById('dropZone').classList.add('drag');}
-function onDragLeave(){document.getElementById('dropZone').classList.remove('drag');}
-function onDrop(e){e.preventDefault();document.getElementById('dropZone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f?.type==='application/pdf')processPdf(f);}
-function handlePdf(e){const f=e.target.files[0];if(f)processPdf(f);e.target.value='';}
-let uploadedDocs={};
-async function processPdf(file){
-  const st=document.getElementById('pdfStatus');
-  if(file.size>14*1024*1024){st.innerHTML='<div class="status-msg err">PDF too large. Max 14MB.</div>';return;}
-  st.innerHTML=`<div class="status-msg ok"><span class="spinner"></span>Uploading "${file.name}" — server is extracting text...</div>`;
-  try{
-    const docId='doc_'+Date.now();
-    const form=new FormData();
-    form.append('file',file,file.name);
-    form.append('docId',docId);
-    const r=await fetch('/api/upload',{method:'POST',body:form});
-    const d=await r.json();
-    if(d.error)throw new Error(d.error);
-    uploadedDocs[docId]={name:file.name,chunks:d.chunks,pages:d.pages};
-    st.innerHTML=`<div class="status-msg ok">&#10003; "${file.name}" uploaded — ${d.pages} pages, ${d.chunks} sections indexed in Postgres.</div>`;
-    renderPdfList();
-  }catch(e){st.innerHTML=`<div class="status-msg err">&#10060; ${e.message}</div>`;}
-}
-async function openPDF(){
-  openOverlay('pdfOverlay');document.getElementById('pdfStatus').innerHTML='';
-  try{
-    const r=await fetch('/api/upload');
-    const d=await r.json();
-    uploadedDocs={};
-    (d.docs||[]).forEach(doc=>uploadedDocs[doc.id]={name:doc.name,chunks:doc.chunk_count,pages:doc.page_count});
-    renderPdfList();
-  }catch{}
-}
-function renderPdfList(){
-  const el=document.getElementById('pdfList'),docs=Object.entries(uploadedDocs);
-  el.innerHTML=docs.map(([id,d])=>`<div class="pdf-item"><div><div class="pdf-item-name">&#128196; ${escH(d.name)}</div><div class="pdf-item-meta">${d.chunks} sections indexed</div></div><button class="pdf-del" onclick="delPdf('${id}','${escH(d.name)}')">Remove</button></div>`).join('');
-}
-async function delPdf(id,name){
-  if(!confirm(`Remove "${name}" from the knowledge base?`))return;
-  try{
-    await fetch('/api/upload',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({docId:id})});
-    delete uploadedDocs[id];
-    renderPdfList();
-    document.getElementById('pdfStatus').innerHTML=`<div class="status-msg ok">&#10003; "${name}" removed.</div>`;
-  }catch(e){alert('Error: '+e.message);}
-}
-let kbAll=[],kbFilter='all';
+
+// ── Knowledge Base viewer ──────────────────────────────────────────────────
+var kbAll=[],kbFilter='all';
 async function openKB(){
-  openOverlay('kbOverlay');document.getElementById('kbEntries').innerHTML='<div class="kb-empty">Loading...</div>';
-  try{const r=await fetch('/api/chat?action=list');const d=await r.json();kbAll=d.entries||[];if(d.version)document.getElementById('verBadge').textContent=d.version;renderKB();}
-  catch(e){document.getElementById('kbEntries').innerHTML=`<div class="kb-empty">Error: ${e.message}</div>`;}
+  openOverlay('kbOverlay');
+  document.getElementById('kbEntries').innerHTML='<div class="kb-empty">Loading...</div>';
+  try{
+    var r=await fetch('/api/chat?action=list');
+    var d=await r.json();
+    kbAll=d.entries||[];
+    if(d.version)document.getElementById('verBadge').textContent=d.version;
+    renderKB();
+  }catch(e){document.getElementById('kbEntries').innerHTML='<div class="kb-empty">Error: '+e.message+'</div>';}
 }
-function filterKB(f,btn){kbFilter=f;document.querySelectorAll('.kf').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderKB();}
+function filterKB(f,btn){
+  kbFilter=f;
+  document.querySelectorAll('.kf').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  renderKB();
+}
 function renderKB(){
-  const el=document.getElementById('kbEntries');
-  const entries=(kbFilter==='all'?kbAll:kbAll.filter(e=>e.source===kbFilter)).slice().sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
-  document.getElementById('kbCount').textContent=`${entries.length} entr${entries.length===1?'y':'ies'}`;
-  if(!entries.length){el.innerHTML=`<div class="kb-empty">${kbAll.length?'No entries in this category.':'No learned knowledge yet. Use Feed to add Q&amp;A pairs.'}</div>`;return;}
-  el.innerHTML=entries.map(e=>{
-    const phrases=(e.triggers||[]).filter(t=>t.includes(' ')).slice(0,6);
-    const kws=(e.questionKeywords||e.keywords||[]).slice(0,5);
-    const disp=phrases.length?phrases:kws;
-    const lbl={feed:'Fed',auto:'Auto',manual:'Manual'}[e.source]||'Auto';
-    return `<div class="kbe"><div class="kbe-top"><div class="kbe-q">${escH(e.question||e.topic||'—')}</div><span class="kbe-src ${e.source||'auto'}">${lbl}</span></div><div class="kbe-cat">${escH(e.category||'Other')} &middot; ${e.hits||0} hits</div><div class="kbe-preview" onclick="this.classList.toggle('exp')">${escH((e.response||'').slice(0,150))}${(e.response||'').length>150?'&hellip;':''}</div><div class="kbe-trigs">${disp.map(t=>`<span class="kbe-trig">${escH(t)}</span>`).join('')}</div><div class="kbe-foot"><span class="kbe-meta">${new Date(e.timestamp).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit'})}</span><button class="kbe-del" onclick="delKBE(this,'${escH(e.key)}')">Delete</button></div></div>`;
+  var el=document.getElementById('kbEntries');
+  var entries=(kbFilter==='all'?kbAll:kbAll.filter(function(e){return e.source===kbFilter;}))
+    .slice().sort(function(a,b){return new Date(b.timestamp)-new Date(a.timestamp);});
+  document.getElementById('kbCount').textContent=entries.length+' entr'+(entries.length===1?'y':'ies');
+  if(!entries.length){
+    el.innerHTML='<div class="kb-empty">'+(kbAll.length?'No entries in this category.':'No learned knowledge yet. Use &#9889; Feed to add Q&amp;A pairs.')+'</div>';
+    return;
+  }
+  el.innerHTML=entries.map(function(e){
+    var phrases=(e.triggers||[]).filter(function(t){return t.indexOf(' ')!==-1;}).slice(0,6);
+    var kws=(e.questionKeywords||e.keywords||[]).slice(0,5);
+    var disp=phrases.length?phrases:kws;
+    var lbl={feed:'Fed',auto:'Auto',manual:'Manual'}[e.source]||'Auto';
+    var preview=escH((e.response||'').slice(0,150))+((e.response||'').length>150?'&hellip;':'');
+    var trigs=disp.map(function(t){return '<span class="kbe-trig">'+escH(t)+'</span>';}).join('');
+    var date=new Date(e.timestamp).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit'});
+    var safeKey=escH(e.key||'');
+    return '<div class="kbe"><div class="kbe-top"><div class="kbe-q">'+escH(e.question||e.topic||'&mdash;')+'</div><span class="kbe-src '+(e.source||'auto')+'">'+lbl+'</span></div><div class="kbe-cat">'+escH(e.category||'Other')+' &middot; '+(e.hits||0)+' hits</div><div class="kbe-preview" onclick="this.classList.toggle(\'exp\')">'+preview+'</div><div class="kbe-trigs">'+trigs+'</div><div class="kbe-foot"><span class="kbe-meta">'+date+'</span><button class="kbe-del" onclick="delKBE(\''+safeKey+'\')">Delete</button></div></div>';
   }).join('');
 }
 function escH(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-async function delKBE(btn,key){
+async function delKBE(key){
   if(!confirm('Delete this entry?'))return;
-  try{await fetch('/api/chat',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});kbAll=kbAll.filter(e=>e.key!==key);renderKB();}catch(e){alert('Delete failed: '+e.message);}
+  try{
+    await fetch('/api/chat',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key})});
+    kbAll=kbAll.filter(function(e){return e.key!==key;});
+    renderKB();
+  }catch(e){alert('Delete failed: '+e.message);}
 }
 </script>
 </body>
