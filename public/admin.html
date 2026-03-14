@@ -374,22 +374,33 @@ var TOKEN = '';
 function doLogin() {
   var pwd = document.getElementById('pwdInput').value.trim();
   if (!pwd) { showLoginErr('Enter your password.'); return; }
-  // Test the password against the API
-  fetch('/api/admin?action=stats', {
+  var btn = document.querySelector('.btn-login');
+  btn.textContent = 'Signing in...'; btn.disabled = true;
+  fetch('/api/admin?action=ping', {
     headers: { 'Authorization': 'Bearer ' + pwd }
   }).then(function(r) {
     if (r.status === 401) {
-      showLoginErr('Incorrect password. Try again.');
-    } else if (r.ok) {
-      TOKEN = pwd;
-      localStorage.setItem('gb_admin_token', pwd);
-      document.getElementById('loginWrap').style.display = 'none';
-      document.getElementById('adminApp').classList.add('visible');
-      initApp(r.json());
-    } else {
-      r.json().then(function(d){ showLoginErr(d.error || 'Login failed.'); });
+      showLoginErr('Incorrect password. Make sure ADMIN_PASSWORD is set in Vercel Environment Variables.');
+      btn.textContent = 'Sign In'; btn.disabled = false;
+      return;
     }
-  }).catch(function(e) { showLoginErr('Connection error: ' + e.message); });
+    if (!r.ok) {
+      r.text().then(function(t){ showLoginErr('Error ' + r.status + ': ' + t.slice(0,100)); });
+      btn.textContent = 'Sign In'; btn.disabled = false;
+      return;
+    }
+    // Auth passed — proceed
+    TOKEN = pwd;
+    localStorage.setItem('gb_admin_token', pwd);
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('adminApp').classList.add('visible');
+    btn.textContent = 'Sign In'; btn.disabled = false;
+    // Load stats separately (non-blocking)
+    loadStats();
+  }).catch(function(e) {
+    showLoginErr('Connection error: ' + e.message);
+    btn.textContent = 'Sign In'; btn.disabled = false;
+  });
 }
 
 function showLoginErr(msg) {
@@ -412,13 +423,13 @@ function doLogout() {
   document.documentElement.setAttribute('data-theme', t);
   var saved = localStorage.getItem('gb_admin_token');
   if (saved) {
-    fetch('/api/admin?action=stats', { headers: { 'Authorization': 'Bearer ' + saved } })
+    fetch('/api/admin?action=ping', { headers: { 'Authorization': 'Bearer ' + saved } })
       .then(function(r) {
         if (r.ok) {
           TOKEN = saved;
           document.getElementById('loginWrap').style.display = 'none';
           document.getElementById('adminApp').classList.add('visible');
-          initApp(r.json());
+          loadStats(); // load stats separately
         }
       }).catch(function(){});
   }
@@ -457,8 +468,8 @@ function switchTab(name, el) {
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-function initApp(statsPromise) {
-  statsPromise.then(function(d) { applyStats(d); });
+function initApp() {
+  loadStats();
 }
 
 // ── Stats ────────────────────────────────────────────────────────────────────
@@ -671,7 +682,8 @@ function renderKBTable() {
     var trigHtml = triggers.map(function(t){ return '<span class="kb-trig">' + escH(t) + '</span>'; }).join('');
     var preview = escH((e.response || '').slice(0, 100)) + ((e.response || '').length > 100 ? '&hellip;' : '');
     var safeKey = escH(e._key || e.key || '');
-    return '<tr style="cursor:pointer" onclick="openKBModal(' + idx + ')">'
+    // Use data-kb-idx attribute so openKBModal gets array index reliably
+    return '<tr style="cursor:pointer" data-kb-idx="' + idx + '" onclick="openKBModalRow(this)">'
       + '<td><div class="kb-q">' + escH(e.question || e.topic || '—') + '</div><div class="kb-triggers" style="margin-top:4px">' + trigHtml + '</div></td>'
       + '<td><span class="badge ' + srcClass + '">' + srcLabel + '</span></td>'
       + '<td><div class="kb-preview">' + preview + '</div></td>'
@@ -679,7 +691,7 @@ function renderKBTable() {
       + '<td>' + escH(e.category || '—') + '</td>'
       + '<td><div style="font-size:11.5px">' + dt + '</div>' + (edited ? '<div style="font-size:10px;color:var(--text3)">edited ' + edited + '</div>' : '') + '</td>'
       + '<td onclick="event.stopPropagation()" style="white-space:nowrap">'
-        + '<button class="btn" style="font-size:11px;padding:4px 8px;margin-right:4px;background:none;border:1px solid var(--border2);color:var(--text2)" onclick="openKBModal(' + idx + ',true)">&#9998; Edit</button>'
+        + '<button class="btn" style="font-size:11px;padding:4px 8px;margin-right:4px;background:none;border:1px solid var(--border2);color:var(--text2)" data-kb-idx="' + idx + '" onclick="openKBModalBtn(this,true)">&#9998; Edit</button>'
         + '<button class="btn btn-danger" data-kb-key="' + safeKey + '" onclick="deleteKBBtn(this)">Delete</button>'
       + '</td>'
       + '</tr>';
@@ -765,6 +777,12 @@ function renderChunks(chunks, highlight) {
 // ── KB Detail/Edit (admin) ────────────────────────────────────────────────────
 var adminKBEditKey = null;
 
+function openKBModalRow(row) {
+  openKBModal(parseInt(row.getAttribute('data-kb-idx'), 10), false);
+}
+function openKBModalBtn(btn, editMode) {
+  openKBModal(parseInt(btn.getAttribute('data-kb-idx'), 10), editMode);
+}
 function openKBModal(idx, editMode) {
   var e = kbFiltered[idx];
   if (!e) return;
