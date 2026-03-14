@@ -78,6 +78,16 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  // ── Auth — upload/delete requires admin password ──────────────────────────
+  if (req.method !== 'GET') {
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.replace('Bearer ', '').trim();
+    const password = process.env.ADMIN_PASSWORD;
+    if (password && token !== password) {
+      return res.status(401).json({ error: 'Unauthorized. Admin password required to upload PDFs.' });
+    }
+  }
+
   // Ensure Neon tables exist (idempotent)
   try { await ensureTables(); } catch (e) {
     return res.status(500).json({ error: `Database setup failed: ${e.message}. Check DATABASE_URL env variable.` });
