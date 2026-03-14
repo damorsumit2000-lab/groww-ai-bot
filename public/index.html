@@ -421,7 +421,7 @@ function doCopy(btn,raw){
 }
 
 // ── Chat state ─────────────────────────────────────────────────────────────
-var history=[],busy=false;
+var chatHistory=[],busy=false;
 
 function appendMsg(role,rawText,src){
   document.getElementById('welcome')&&document.getElementById('welcome').remove();
@@ -455,16 +455,16 @@ async function sendMsg(){
   inp.value='';inp.style.height='auto';
   busy=true;document.getElementById('sendBtn').disabled=true;
   appendMsg('user',text);
-  history.push({role:'user',content:text});
+  chatHistory.push({role:'user',content:text});
   showTyping();
   try{
-    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:history.slice(-6)})});
+    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:chatHistory.slice(-6)})});
     var d=await r.json();
     removeTyping();
     var reply=d.error?'Error: '+d.error:d.reply;
     var src=d.autoLearned?'auto':(d.source||'ai');
     appendMsg('bot',reply,src);
-    if(!d.error){history.push({role:'assistant',content:reply});if(history.length>20)history=history.slice(-20);}
+    if(!d.error){chatHistory.push({role:'assistant',content:reply});if(chatHistory.length>20)chatHistory=chatHistory.slice(-20);}
   }catch(e){removeTyping();appendMsg('bot','Connection error. Please try again.');}
   busy=false;document.getElementById('sendBtn').disabled=false;
   document.getElementById('inp').focus();
