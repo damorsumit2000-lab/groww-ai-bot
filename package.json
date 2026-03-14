@@ -1,0 +1,17 @@
+{
+  "name": "growwbot",
+  "version": "10.0.0",
+  "description": "GrowwBot — Groww Support AI Assistant",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.4",
+    "pdf-parse": "^1.1.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
