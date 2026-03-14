@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>GrowwBot v1.0</title>
+<title>GrowwBot v9.0</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2300c48c'/><polyline points='4,22 10,14 16,18 22,8 28,12' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -31,6 +31,12 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 .sb-label:first-child{margin-top:0;}
 .sq{display:block;width:100%;background:none;border:none;border-radius:6px;padding:6px 8px;text-align:left;font-family:'Inter',sans-serif;font-size:12px;color:var(--text2);cursor:pointer;transition:all .12s;line-height:1.38;}
 .sq:hover{background:var(--accent-bg);color:var(--accent);transform:translateX(2px);}
+.sq.hidden{display:none;}
+.sb-search-wrap{padding:6px 4px 4px;position:sticky;top:0;background:var(--bg2);z-index:2;padding-bottom:6px;}
+.sb-search{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;padding:6px 10px;outline:none;transition:border-color .2s;}
+.sb-search:focus{border-color:var(--accent);}
+.sb-search::placeholder{color:var(--text3);}
+.sb-no-results{font-size:12px;color:var(--text3);text-align:center;padding:16px 8px;display:none;}
 .sb-div{height:1px;background:var(--border);margin:8px 4px;}
 .sb-act{display:flex;align-items:center;gap:7px;width:100%;border-radius:7px;padding:8px 10px;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;margin-top:3px;}
 .sb-act.p{background:var(--accent-bg);border:1px solid var(--accent);color:var(--accent);}
@@ -145,10 +151,37 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
 .kbe-preview.exp{max-height:none;}
 .kbe-trigs{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:7px;}
 .kbe-trig{font-size:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px 7px;color:var(--text3);}
-.kbe-foot{display:flex;align-items:center;justify-content:space-between;}
+.kbe-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;}
 .kbe-meta{font-size:10px;color:var(--text3);}
 .kbe-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:3px 7px;border-radius:5px;transition:all .15s;}
 .kbe-del:hover{color:var(--danger);background:rgba(204,68,68,.07);}
+.kbe-edit{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:3px 7px;border-radius:5px;transition:all .15s;}
+.kbe-edit:hover{color:var(--accent);background:var(--accent-bg);}
+.kb-search-bar{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap;}
+.kb-search-inp{flex:1;min-width:160px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'Inter',sans-serif;font-size:12.5px;padding:7px 10px;outline:none;transition:border-color .2s;}
+.kb-search-inp:focus{border-color:var(--accent);}
+.kb-search-inp::placeholder{color:var(--text3);}
+.kb-sort-sel{background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;padding:7px 10px;outline:none;cursor:pointer;}
+.kb-result-count{font-size:11px;color:var(--text3);align-self:center;white-space:nowrap;}
+/* KB Detail Modal */
+.kb-detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);}
+.kb-detail-overlay.hidden{display:none;}
+.kb-detail-modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:600px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;animation:fadeUp .2s ease;}
+.kb-detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+.kb-detail-hdr h3{font-size:14px;font-weight:600;}
+.kb-detail-body{padding:16px 18px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:12px;}
+.kb-detail-body::-webkit-scrollbar{width:3px;}
+.kb-detail-body::-webkit-scrollbar-thumb{background:var(--scroll);}
+.kd-field{display:flex;flex-direction:column;gap:4px;}
+.kd-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);}
+.kd-val{font-size:13px;color:var(--text);line-height:1.6;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:9px 12px;word-break:break-word;white-space:pre-wrap;}
+.kd-val.editable{outline:none;cursor:text;}
+.kd-val.editable:focus{border-color:var(--accent);}
+.kd-badges{display:flex;flex-wrap:wrap;gap:5px;}
+.kd-trig{font-size:10.5px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:2px 8px;color:var(--text2);}
+.kd-meta-row{display:flex;gap:16px;flex-wrap:wrap;}
+.kd-meta-item{display:flex;flex-direction:column;gap:2px;}
+.kb-detail-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
 @media(max-width:700px){
   .app{grid-template-columns:1fr;}.sidebar{display:none;}.menu-btn{display:flex;}
   .msgs{padding:12px 10px 8px;}.msg-body{max-width:90%;}.bubble{font-size:12.5px;}
@@ -166,7 +199,7 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
       <svg viewBox="0 0 20 20" fill="none"><polyline points="2,14 6,9 10,11 14,5 18,7" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
     <span class="brand-name">Groww<span>Bot</span></span>
-    <span class="ver" id="verBadge">v1.0</span>
+    <span class="ver" id="verBadge">v9.0</span>
   </div>
   <div class="hdr-r">
     <span class="online"><span class="pulse"></span>Online</span>
@@ -180,6 +213,10 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
   <button class="sb-act p" onclick="openFeed()"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/></svg>Feed Q&amp;A</button>
   <button class="sb-act s" onclick="openKB()"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492z"/></svg>Knowledge Base</button>
   <div class="sb-div"></div>
+  <div class="sb-search-wrap">
+    <input class="sb-search" type="text" id="sbSearch" placeholder="&#128269; Search queries..." oninput="filterSidebar(this.value)">
+  </div>
+  <div class="sb-no-results" id="sbNoResults">No queries match</div>
   <div class="sb-label">Settlements</div>
   <button class="sq" onclick="ask('Customer traded today, wants to know when withdrawal will be available')">T+1 settlement</button>
   <button class="sq" onclick="ask('Customer withdrawal amount not received in bank account')">Withdrawal not received</button>
@@ -275,6 +312,62 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
   <button class="sq" onclick="ask('Customer says Groww squared off their position without permission')">Unauthorized squareoff</button>
   <button class="sq" onclick="ask('Customer asking how to raise a complaint or ticket')">Raise complaint</button>
   <button class="sq" onclick="ask('Customer asking for Groww office address and contact number')">Contact Groww</button>
+  <button class="sq" onclick="ask('Customer wants to write a complaint to Groww grievance team')">Grievance complaint</button>
+  <div class="sb-label">SGB &amp; Gold</div>
+  <button class="sq" onclick="ask('Customer asking about Sovereign Gold Bond interest payout')">SGB interest payout</button>
+  <button class="sq" onclick="ask('Customer asking how to buy Sovereign Gold Bond on Groww')">Buy SGB on Groww</button>
+  <button class="sq" onclick="ask('Customer asking about Groww Gold early redemption')">Groww Gold redemption</button>
+  <div class="sb-label">Withdrawals &amp; Funds</div>
+  <button class="sq" onclick="ask('Customer wants to add a second bank account on Groww')">Add second bank</button>
+  <button class="sq" onclick="ask('Customer primary bank showing unverified on Groww')">Bank unverified</button>
+  <button class="sq" onclick="ask('Customer withdrawal failed due to bank account mismatch')">Bank mismatch withdrawal</button>
+  <button class="sq" onclick="ask('Customer asking about Groww Pay and UPI limit')">Groww Pay UPI limit</button>
+  <div class="sb-label">Portfolio &amp; Reports</div>
+  <button class="sq" onclick="ask('Customer asking how to download capital gains report from Groww')">Capital gains report</button>
+  <button class="sq" onclick="ask('Customer asking how to download P&L statement for IT filing')">P&L for tax filing</button>
+  <button class="sq" onclick="ask('Customer asking about LTCG and STCG on stocks and mutual funds')">LTCG STCG query</button>
+  <button class="sq" onclick="ask('Customer asking about how to view transaction history on Groww')">Transaction history</button>
+  <div class="sb-label">Referral &amp; Offers</div>
+  <button class="sq" onclick="ask('Customer asking about Groww referral program and cashback')">Referral query</button>
+  <button class="sq" onclick="ask('Customer referral reward not received')">Reward not received</button>
+  <div class="sb-label">US Stocks</div>
+  <button class="sq" onclick="ask('Customer asking how to invest in US stocks through Groww')">US stocks query</button>
+  <button class="sq" onclick="ask('Customer asking about US stock withdrawal and currency conversion')">US stock withdrawal</button>
+  <button class="sq" onclick="ask('Customer asking about LRS limit for US stock investment')">LRS limit query</button>
+  <div class="sb-label">Smallcase</div>
+  <button class="sq" onclick="ask('Customer asking about Smallcase investment on Groww')">Smallcase query</button>
+  <button class="sq" onclick="ask('Customer asking how to exit a Smallcase portfolio')">Exit Smallcase</button>
+
+  <div class="sb-label">Options &amp; Derivatives</div>
+  <button class="sq" onclick="ask('Customer asking about options buying and selling on Groww')">Options basics</button>
+  <button class="sq" onclick="ask('Customer asking about weekly vs monthly expiry for options')">Weekly vs monthly expiry</button>
+  <button class="sq" onclick="ask('Customer asking why their option expired worthless')">Option expired worthless</button>
+  <button class="sq" onclick="ask('Customer asking about index options NIFTY BANKNIFTY on Groww')">Index options query</button>
+
+  <div class="sb-label">Demat &amp; Holdings</div>
+  <button class="sq" onclick="ask('Customer asking how to transfer shares from another broker to Groww')">Share transfer to Groww</button>
+  <button class="sq" onclick="ask('Customer asking about DIS slip and off-market transfer')">DIS slip query</button>
+  <button class="sq" onclick="ask('Customer asking about Demat account annual maintenance charges')">Demat AMC charges</button>
+  <button class="sq" onclick="ask('Customer asking about DDPI and its use on Groww')">DDPI query</button>
+
+  <div class="sb-label">NRI &amp; Foreign</div>
+  <button class="sq" onclick="ask('Customer asking if Groww supports NRI account opening')">NRI account query</button>
+  <button class="sq" onclick="ask('Customer asking about NRO vs NRE account for investments')">NRO vs NRE account</button>
+
+  <div class="sb-label">Insurance &amp; FD</div>
+  <button class="sq" onclick="ask('Customer asking about fixed deposit investment on Groww')">FD on Groww</button>
+  <button class="sq" onclick="ask('Customer asking about Groww insurance products')">Insurance query</button>
+
+  <div class="sb-label">Crypto &amp; Others</div>
+  <button class="sq" onclick="ask('Customer asking if Groww supports cryptocurrency trading')">Crypto query</button>
+  <button class="sq" onclick="ask('Customer asking about multi-currency wallet on Groww')">Multi-currency wallet</button>
+
+  <div class="sb-label">Account Security</div>
+  <button class="sq" onclick="ask('Customer forgot Groww MPIN and wants to reset it')">MPIN reset</button>
+  <button class="sq" onclick="ask('Customer account was accessed by unknown person, suspicious activity')">Suspicious login</button>
+  <button class="sq" onclick="ask('Customer wants to enable 2FA or biometric login on Groww')">2FA / biometric login</button>
+  <button class="sq" onclick="ask('Customer Groww app not opening or crashing on phone')">App crash issue</button>
+  <button class="sq" onclick="ask('Customer unable to login to Groww app after phone change')">Login after phone change</button>
 </aside>
 <main class="chat">
   <div class="msgs" id="msgs">
@@ -308,7 +401,7 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
     <div class="brand">
       <div class="brand-icon" style="width:24px;height:24px;border-radius:6px;"><svg viewBox="0 0 20 20" fill="none" style="width:12px;height:12px;"><polyline points="2,14 6,9 10,11 14,5 18,7" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <span class="brand-name" style="font-size:13px;">Groww<span>Bot</span></span>
-      <span class="ver" style="font-size:8px;">v1.0</span>
+      <span class="ver" style="font-size:8px;">v9.0</span>
     </div>
     <button class="drawer-close" onclick="closeDrawer()">&#10005;</button>
   </div>
@@ -333,8 +426,21 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
 <!-- KB Modal -->
 <div class="overlay hidden" id="kbOverlay" onclick="closeIfBg(event,'kbOverlay')">
   <div class="modal wide">
-    <div class="modal-hdr"><h2>&#128218; Knowledge Base</h2><button class="modal-close" onclick="closeOverlay('kbOverlay')">&#10005;</button></div>
+    <div class="modal-hdr">
+      <h2>&#128218; Knowledge Base</h2>
+      <button class="modal-close" onclick="closeOverlay('kbOverlay')">&#10005;</button>
+    </div>
     <div class="modal-body">
+      <div class="kb-search-bar">
+        <input class="kb-search-inp" type="text" id="kbSearchInp" placeholder="&#128269; Search questions or answers..." oninput="renderKB()">
+        <select class="kb-sort-sel" id="kbSortSel" onchange="renderKB()">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="hits">Most hits</option>
+          <option value="az">A–Z</option>
+        </select>
+        <span class="kb-result-count" id="kbCount"></span>
+      </div>
       <div class="kb-toolbar">
         <div class="kb-filters">
           <button class="kf active" onclick="filterKB('all',this)">All</button>
@@ -342,9 +448,23 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
           <button class="kf" onclick="filterKB('auto',this)">Auto-learned</button>
           <button class="kf" onclick="filterKB('manual',this)">Manual</button>
         </div>
-        <span class="kb-count" id="kbCount"></span>
       </div>
       <div id="kbEntries"><div class="kb-empty">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- KB Detail/Edit Modal -->
+<div class="kb-detail-overlay hidden" id="kbDetailOverlay">
+  <div class="kb-detail-modal">
+    <div class="kb-detail-hdr">
+      <h3 id="kbDetailTitle">KB Entry</h3>
+      <button class="modal-close" onclick="closeKBDetail()">&#10005;</button>
+    </div>
+    <div class="kb-detail-body" id="kbDetailBody"></div>
+    <div class="kb-detail-footer">
+      <button class="btn-s" onclick="closeKBDetail()">Close</button>
+      <button class="btn-p" id="kbDetailSaveBtn" onclick="saveKBEdit()" style="display:none">Save Changes</button>
     </div>
   </div>
 </div>
@@ -371,9 +491,25 @@ function toggleTheme(){
 function openDrawer(){
   var db=document.getElementById('drawerBody');
   db.innerHTML=document.getElementById('sidebar').innerHTML;
+  // Rewire ask() -> _da() for drawer buttons
   db.querySelectorAll('.sq').forEach(function(b){
     var o=b.getAttribute('onclick');
     if(o) b.setAttribute('onclick',o.replace('ask(','_da('));
+  });
+  // Fix search input id and handler for drawer context
+  var drawerSearch=db.querySelector('#sbSearch');
+  if(drawerSearch){
+    drawerSearch.id='drawerSearch';
+    drawerSearch.oninput=function(){filterDrawer(this.value);};
+    drawerSearch.value='';
+  }
+  var drawerNoRes=db.querySelector('#sbNoResults');
+  if(drawerNoRes){drawerNoRes.id='drawerNoResults';drawerNoRes.style.display='none';}
+  // Rewire sb-act buttons (Feed/KB etc)
+  db.querySelectorAll('.sb-act').forEach(function(b){
+    var o=b.getAttribute('onclick');
+    if(o&&o.includes('openFeed')){b.setAttribute('onclick','closeDrawer();setTimeout(openFeed,80)');}
+    if(o&&o.includes('openKB')){b.setAttribute('onclick','closeDrawer();setTimeout(openKB,80)');}
   });
   document.getElementById('drawer').classList.add('open');
   document.getElementById('dOverlay').classList.add('open');
@@ -504,10 +640,62 @@ async function doFeed(){
 }
 
 // ── Knowledge Base viewer ──────────────────────────────────────────────────
-var kbAll=[],kbFilter='all';
+// ── Sidebar search ─────────────────────────────────────────────────────────
+function filterSidebar(val){
+  var q=val.toLowerCase().trim();
+  var btns=document.querySelectorAll('#sidebar .sq');
+  var visible=0;
+  btns.forEach(function(b){
+    var label=b.textContent.toLowerCase();
+    var qtext=(b.getAttribute('onclick')||'').toLowerCase();
+    var matches=!q||label.includes(q)||qtext.includes(q);
+    b.classList.toggle('hidden',!matches);
+    if(matches)visible++;
+  });
+  document.querySelectorAll('#sidebar .sb-label').forEach(function(lbl){
+    if(lbl.getAttribute('style')==='margin-top:0') return;
+    var next=lbl.nextElementSibling,hasV=false;
+    while(next&&!next.classList.contains('sb-label')&&!next.classList.contains('sb-div')){
+      if(next.classList.contains('sq')&&!next.classList.contains('hidden'))hasV=true;
+      next=next.nextElementSibling;
+    }
+    lbl.style.display=hasV?'':'none';
+  });
+  var noRes=document.getElementById('sbNoResults');
+  if(noRes)noRes.style.display=(q&&visible===0)?'block':'none';
+}
+
+function filterDrawer(val){
+  var q=val.toLowerCase().trim();
+  var btns=document.querySelectorAll('#drawerBody .sq');
+  var visible=0;
+  btns.forEach(function(b){
+    var label=b.textContent.toLowerCase();
+    var qtext=(b.getAttribute('onclick')||'').toLowerCase();
+    var matches=!q||label.includes(q)||qtext.includes(q);
+    b.classList.toggle('hidden',!matches);
+    if(matches)visible++;
+  });
+  document.querySelectorAll('#drawerBody .sb-label').forEach(function(lbl){
+    var next=lbl.nextElementSibling,hasV=false;
+    while(next&&!next.classList.contains('sb-label')&&!next.classList.contains('sb-div')){
+      if(next.classList.contains('sq')&&!next.classList.contains('hidden'))hasV=true;
+      next=next.nextElementSibling;
+    }
+    lbl.style.display=hasV?'':'none';
+  });
+  var noRes=document.getElementById('drawerNoResults');
+  if(noRes)noRes.style.display=(q&&visible===0)?'block':'none';
+}
+
+// ── Knowledge Base ─────────────────────────────────────────────────────────
+var kbAll=[],kbFilter='all',kbEditKey=null;
+
 async function openKB(){
   openOverlay('kbOverlay');
   document.getElementById('kbEntries').innerHTML='<div class="kb-empty">Loading...</div>';
+  var si=document.getElementById('kbSearchInp'); if(si)si.value='';
+  var ss=document.getElementById('kbSortSel'); if(ss)ss.value='newest';
   try{
     var r=await fetch('/api/chat?action=list');
     var d=await r.json();
@@ -516,34 +704,68 @@ async function openKB(){
     renderKB();
   }catch(e){document.getElementById('kbEntries').innerHTML='<div class="kb-empty">Error: '+e.message+'</div>';}
 }
+
 function filterKB(f,btn){
   kbFilter=f;
   document.querySelectorAll('.kf').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
   renderKB();
 }
+
 function renderKB(){
   var el=document.getElementById('kbEntries');
-  var entries=(kbFilter==='all'?kbAll:kbAll.filter(function(e){return e.source===kbFilter;}))
-    .slice().sort(function(a,b){return new Date(b.timestamp)-new Date(a.timestamp);});
-  document.getElementById('kbCount').textContent=entries.length+' entr'+(entries.length===1?'y':'ies');
+  var si=document.getElementById('kbSearchInp');
+  var ss=document.getElementById('kbSortSel');
+  var q=si?(si.value||'').toLowerCase().trim():'';
+  var sort=ss?ss.value:'newest';
+
+  var entries=kbAll.filter(function(e){
+    var srcOk=kbFilter==='all'||e.source===kbFilter;
+    var qOk=!q||(e.question||'').toLowerCase().includes(q)||(e.response||'').toLowerCase().includes(q)||(e.category||'').toLowerCase().includes(q);
+    return srcOk&&qOk;
+  });
+
+  entries=entries.slice().sort(function(a,b){
+    if(sort==='newest') return new Date(b.timestamp||0)-new Date(a.timestamp||0);
+    if(sort==='oldest') return new Date(a.timestamp||0)-new Date(b.timestamp||0);
+    if(sort==='hits')   return (b.hits||0)-(a.hits||0);
+    if(sort==='az')     return (a.question||'').localeCompare(b.question||'');
+    return 0;
+  });
+
+  var countEl=document.getElementById('kbCount');
+  if(countEl)countEl.textContent=entries.length+' entr'+(entries.length===1?'y':'ies');
+
   if(!entries.length){
-    el.innerHTML='<div class="kb-empty">'+(kbAll.length?'No entries in this category.':'No learned knowledge yet. Use &#9889; Feed to add Q&amp;A pairs.')+'</div>';
+    el.innerHTML='<div class="kb-empty">'+(kbAll.length?'No entries match.':'No learned knowledge yet. Use &#9889; Feed to add Q&amp;A pairs.')+'</div>';
     return;
   }
+
   el.innerHTML=entries.map(function(e){
-    var phrases=(e.triggers||[]).filter(function(t){return t.indexOf(' ')!==-1;}).slice(0,6);
-    var kws=(e.questionKeywords||e.keywords||[]).slice(0,5);
+    var globalIdx=kbAll.indexOf(e);
+    var phrases=(e.triggers||[]).filter(function(t){return t.indexOf(' ')!==-1;}).slice(0,4);
+    var kws=(e.questionKeywords||e.keywords||[]).slice(0,4);
     var disp=phrases.length?phrases:kws;
     var lbl={feed:'Fed',auto:'Auto',manual:'Manual'}[e.source]||'Auto';
-    var preview=escH((e.response||'').slice(0,150))+((e.response||'').length>150?'&hellip;':'');
+    var preview=escH((e.response||'').slice(0,120))+((e.response||'').length>120?'&hellip;':'');
     var trigs=disp.map(function(t){return '<span class="kbe-trig">'+escH(t)+'</span>';}).join('');
-    var date=new Date(e.timestamp).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit'});
-    var safeKey=escH(e.key||'');
-    return '<div class="kbe"><div class="kbe-top"><div class="kbe-q">'+escH(e.question||e.topic||'&mdash;')+'</div><span class="kbe-src '+(e.source||'auto')+'">'+lbl+'</span></div><div class="kbe-cat">'+escH(e.category||'Other')+' &middot; '+(e.hits||0)+' hits</div><div class="kbe-preview" onclick="this.classList.toggle(\'exp\')">'+preview+'</div><div class="kbe-trigs">'+trigs+'</div><div class="kbe-foot"><span class="kbe-meta">'+date+'</span><button class="kbe-del" onclick="delKBE(\''+safeKey+'\')">Delete</button></div></div>';
+    var date=new Date(e.timestamp||Date.now()).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit'});
+    return '<div class="kbe" style="cursor:pointer" onclick="openKBDetail('+globalIdx+')">'
+      +'<div class="kbe-top"><div class="kbe-q">'+escH(e.question||e.topic||'&mdash;')+'</div><span class="kbe-src '+(e.source||'auto')+'">'+lbl+'</span></div>'
+      +'<div class="kbe-cat">'+escH(e.category||'Other')+' &middot; '+(e.hits||0)+' hits</div>'
+      +'<div class="kbe-preview">'+preview+'</div>'
+      +'<div class="kbe-trigs">'+trigs+'</div>'
+      +'<div class="kbe-foot"><span class="kbe-meta">'+date+'</span>'
+      +'<div style="display:flex;gap:4px" onclick="event.stopPropagation()">'
+      +'<button class="kbe-edit" onclick="openKBDetail('+globalIdx+',true)">&#9998; Edit</button>'
+      +'<button class="kbe-del" data-key="'+escH(e.key||'')+'" onclick="delKBEBtn(this)">Delete</button>'
+      +'</div></div></div>';
   }).join('');
 }
+
 function escH(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function delKBEBtn(btn){delKBE(btn.getAttribute('data-key'));}
 async function delKBE(key){
   if(!confirm('Delete this entry?'))return;
   try{
@@ -551,6 +773,70 @@ async function delKBE(key){
     kbAll=kbAll.filter(function(e){return e.key!==key;});
     renderKB();
   }catch(e){alert('Delete failed: '+e.message);}
+}
+
+// ── KB Detail / Edit Modal ─────────────────────────────────────────────────
+function openKBDetail(idx,editMode){
+  var e=kbAll[idx];
+  if(!e)return;
+  kbEditKey=e.key||null;
+  var isEdit=!!editMode;
+  document.getElementById('kbDetailTitle').textContent=isEdit?'Edit KB Entry':'KB Entry Detail';
+  document.getElementById('kbDetailSaveBtn').style.display=isEdit?'':'none';
+
+  var phrases=(e.triggers||[]).filter(function(t){return t.indexOf(' ')!==-1;}).slice(0,8);
+  var kws=(e.questionKeywords||e.keywords||[]).slice(0,8);
+  var trigDisp=phrases.length?phrases:kws;
+  var srcClass={feed:'feed',auto:'auto',manual:'manual'}[e.source]||'auto';
+  var lbl={feed:'Fed',auto:'Auto',manual:'Manual'}[e.source]||'Auto';
+  var created=e.timestamp?new Date(e.timestamp).toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Not recorded';
+  var edited=e.updatedAt?new Date(e.updatedAt).toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):created;
+
+  document.getElementById('kbDetailBody').innerHTML=
+    '<div class="kd-field"><div class="kd-label">Question</div>'
+    +'<div class="kd-val'+(isEdit?' editable':'')+'" id="kdQuestion"'+(isEdit?' contenteditable="true"':'')+'>'+escH(e.question||e.topic||'')+'</div></div>'
+    +'<div class="kd-field"><div class="kd-label">Response</div>'
+    +'<div class="kd-val'+(isEdit?' editable':'')+'" id="kdResponse" style="max-height:200px;overflow-y:auto"'+(isEdit?' contenteditable="true"':'')+'>'+escH(e.response||'')+'</div></div>'
+    +'<div class="kd-field"><div class="kd-label">Source &amp; Category</div>'
+    +'<div style="display:flex;gap:8px;align-items:center"><span class="kbe-src '+srcClass+'">'+lbl+'</span>'
+    +'<span style="font-size:12.5px;color:var(--text2)">'+escH(e.category||'Other')+'</span></div></div>'
+    +'<div class="kd-field"><div class="kd-label">Trigger Phrases</div>'
+    +'<div class="kd-badges">'+trigDisp.map(function(t){return '<span class="kd-trig">'+escH(t)+'</span>';}).join('')+'</div></div>'
+    +'<div class="kd-field"><div class="kd-meta-row">'
+    +'<div class="kd-meta-item"><div class="kd-label">Hits</div><div style="font-size:20px;font-weight:700;color:var(--accent)">'+(e.hits||0)+'</div></div>'
+    +'<div class="kd-meta-item"><div class="kd-label">First Added</div><div style="font-size:12px;color:var(--text2)">'+created+'</div></div>'
+    +'<div class="kd-meta-item"><div class="kd-label">Last Edited</div><div style="font-size:12px;color:var(--text2)">'+edited+'</div></div>'
+    +'</div></div>';
+
+  document.getElementById('kbDetailOverlay').classList.remove('hidden');
+}
+
+function closeKBDetail(){
+  document.getElementById('kbDetailOverlay').classList.add('hidden');
+  kbEditKey=null;
+}
+
+async function saveKBEdit(){
+  if(!kbEditKey)return;
+  var question=document.getElementById('kdQuestion').innerText.trim();
+  var response=document.getElementById('kdResponse').innerText.trim();
+  if(!question||!response){alert('Question and response cannot be empty.');return;}
+  var btn=document.getElementById('kbDetailSaveBtn');
+  btn.textContent='Saving...';btn.disabled=true;
+  try{
+    var existing=kbAll.find(function(e){return e.key===kbEditKey;});
+    if(!existing)throw new Error('Entry not found');
+    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'feed',question:question,answer:response,category:existing.category||'Other',feedKey:kbEditKey})
+    });
+    var d=await r.json();
+    if(d.error)throw new Error(d.error);
+    var idx=kbAll.findIndex(function(e){return e.key===kbEditKey;});
+    if(idx!==-1)kbAll[idx]=Object.assign({},kbAll[idx],{question:question,response:response,updatedAt:new Date().toISOString()});
+    closeKBDetail();
+    renderKB();
+  }catch(e){alert('Save failed: '+e.message);}
+  finally{btn.textContent='Save Changes';btn.disabled=false;}
 }
 </script>
 </body>
