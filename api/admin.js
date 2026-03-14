@@ -79,6 +79,19 @@ export default async function handler(req, res) {
       return res.status(200).json({ docs });
     }
 
+    // ── GET /api/admin?action=chunks — get PDF chunks for a doc ─────────────
+    if (req.method === 'GET' && action === 'chunks') {
+      const { docId } = req.query;
+      if (!docId) return res.status(400).json({ error: 'docId required' });
+      const sql = (await import('@neondatabase/serverless')).neon(process.env.DATABASE_URL);
+      const chunks = await sql`
+        SELECT chunk_index, content FROM pdf_chunks
+        WHERE doc_id = ${docId}
+        ORDER BY chunk_index ASC
+      `;
+      return res.status(200).json({ chunks });
+    }
+
     // ── GET /api/admin?action=kb — list all Upstash KB entries ───────────────
     if (req.method === 'GET' && action === 'kb') {
       const entries = await redisGetAll('kb:*');
@@ -93,12 +106,20 @@ export default async function handler(req, res) {
     }
 
     // ── GET /api/admin?action=stats — dashboard stats ─────────────────────────
+    // ── GET /api/admin?action=ping — lightweight auth check ─────────────────
+    if (req.method === 'GET' && action === 'ping') {
+      return res.status(200).json({ ok: true, upstash: upstashReady(), db: !!process.env.DATABASE_URL });
+    }
+
     if (req.method === 'GET' && action === 'stats') {
-      await ensureTables();
-      const [docs, kbEntries] = await Promise.all([
-        listDocuments(),
-        redisGetAll('kb:*'),
-      ]);
+      // Gracefully handle missing env vars — auth passing is more important than complete stats
+      let docs = [], kbEntries = [];
+      try { await ensureTables(); docs = await listDocuments(); } catch(dbErr) {
+        console.warn('DB not available for stats:', dbErr.message);
+      }
+      try { kbEntries = await redisGetAll('kb:*'); } catch(redisErr) {
+        console.warn('Redis not available for stats:', redisErr.message);
+      }
       const kbValid = kbEntries.filter(e => e.response);
       const totalChunks = docs.reduce((s, d) => s + (d.chunk_count || 0), 0);
       const bySource = { feed: 0, auto: 0, manual: 0 };
