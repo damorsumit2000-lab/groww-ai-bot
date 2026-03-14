@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GrowwBot Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root[data-theme="dark"]{
+  --bg:#0e0f10;--bg2:#141516;--surface:#1a1b1d;--surface2:#202123;--surface3:#262729;
+  --border:#28292b;--border2:#303133;--text:#d6d6d6;--text2:#848484;--text3:#424242;
+  --accent:#00c48c;--accent2:#00a876;--accent-bg:rgba(0,196,140,.08);--accent-glow:rgba(0,196,140,.15);
+  --danger:#cc4040;--danger-bg:rgba(204,64,64,.08);--warn:#b87c20;--warn-bg:rgba(184,124,32,.08);
+  --info:#3a8fc8;--info-bg:rgba(58,143,200,.08);--purple:#9060c0;--purple-bg:rgba(144,96,192,.08);
+  --green:#2a9a60;--green-bg:rgba(42,154,96,.08);
+}
+:root[data-theme="light"]{
+  --bg:#f0efed;--bg2:#e8e7e5;--surface:#fafaf8;--surface2:#f0f0ee;--surface3:#e8e8e6;
+  --border:#d2d2ce;--border2:#c8c8c4;--text:#1a1a1a;--text2:#5a5a5a;--text3:#a0a0a0;
+  --accent:#009970;--accent2:#007d5a;--accent-bg:rgba(0,153,112,.07);--accent-glow:rgba(0,153,112,.12);
+  --danger:#b03030;--danger-bg:rgba(176,48,48,.07);--warn:#906010;--warn-bg:rgba(144,96,16,.07);
+  --info:#2070a8;--info-bg:rgba(32,112,168,.07);--purple:#7040a8;--purple-bg:rgba(112,64,168,.07);
+  --green:#207850;--green-bg:rgba(32,120,80,.07);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
+a{color:var(--accent);text-decoration:none;}
+a:hover{text-decoration:underline;}
+
+/* ── Login screen ── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);}
+.login-box{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:32px 28px;text-align:center;}
+.login-icon{width:52px;height:52px;background:var(--accent);border-radius:13px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
+.login-icon svg{width:24px;height:24px;}
+.login-box h1{font-size:18px;font-weight:700;margin-bottom:4px;}
+.login-box p{font-size:12.5px;color:var(--text2);margin-bottom:24px;}
+.inp{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;padding:10px 12px;outline:none;transition:border-color .2s;margin-bottom:10px;}
+.inp:focus{border-color:var(--accent);}
+.inp::placeholder{color:var(--text3);}
+.btn-login{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px;font-family:'Inter',sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;transition:opacity .15s;margin-top:2px;}
+.btn-login:hover{opacity:.86;}
+.login-err{font-size:12px;color:var(--danger);margin-top:8px;min-height:16px;}
+
+/* ── App layout ── */
+.app{display:none;min-height:100vh;flex-direction:column;}
+.app.visible{display:flex;}
+
+/* ── Top bar ── */
+.topbar{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:20;}
+.topbar-l{display:flex;align-items:center;gap:10px;}
+.topbar-icon{width:28px;height:28px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;}
+.topbar-icon svg{width:14px;height:14px;}
+.topbar-title{font-size:14px;font-weight:700;letter-spacing:-.2px;}
+.topbar-title span{color:var(--accent);}
+.ver-tag{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:500;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:2px 7px;}
+.topbar-r{display:flex;align-items:center;gap:8px;}
+.tbtn{height:30px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);cursor:pointer;display:flex;align-items:center;gap:5px;padding:0 10px;color:var(--text2);font-family:'Inter',sans-serif;font-size:12px;transition:all .15s;}
+.tbtn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+.tbtn.danger:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-bg);}
+.tbtn svg{width:12px;height:12px;}
+
+/* ── Nav tabs ── */
+.nav{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--border);background:var(--bg2);}
+.nav-tab{padding:10px 16px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+.nav-tab:hover{color:var(--text);}
+.nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.nav-badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:var(--surface3);color:var(--text2);}
+.nav-badge.accent{background:var(--accent-bg);color:var(--accent);}
+
+/* ── Main content ── */
+.main{flex:1;padding:24px 20px;max-width:1200px;width:100%;}
+
+/* ── Stats cards ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:24px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:16px 18px;}
+.stat-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);margin-bottom:8px;}
+.stat-val{font-size:28px;font-weight:700;letter-spacing:-.5px;line-height:1;}
+.stat-sub{font-size:11.5px;color:var(--text2);margin-top:5px;}
+.stat-card.green .stat-val{color:var(--accent);}
+.stat-card.blue .stat-val{color:var(--info);}
+.stat-card.purple .stat-val{color:var(--purple);}
+.stat-card.warn .stat-val{color:var(--warn);}
+
+/* ── Section ── */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:11px;margin-bottom:16px;overflow:hidden;}
+.section-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+.section-hdr h2{font-size:13.5px;font-weight:600;}
+.section-hdr-r{display:flex;align-items:center;gap:8px;}
+.section-body{padding:16px 18px;}
+
+/* ── Upload area ── */
+.upload-zone{border:2px dashed var(--border2);border-radius:10px;padding:30px 20px;text-align:center;cursor:pointer;transition:all .2s;}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:var(--accent-bg);}
+.upload-zone svg{width:36px;height:36px;color:var(--text3);margin:0 auto 10px;display:block;}
+.upload-zone h3{font-size:14px;font-weight:500;margin-bottom:4px;}
+.upload-zone p{font-size:12px;color:var(--text2);}
+.upload-progress{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-top:12px;display:none;}
+.upload-progress.visible{display:block;}
+.progress-bar-wrap{background:var(--surface3);border-radius:4px;height:5px;margin-top:8px;overflow:hidden;}
+.progress-bar{height:100%;background:var(--accent);border-radius:4px;transition:width .3s;width:0%;}
+.progress-text{font-size:12px;color:var(--text2);margin-top:4px;}
+
+/* ── Table ── */
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);padding:8px 12px;border-bottom:1px solid var(--border);}
+td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.4;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--surface2);}
+.tbl-empty{text-align:center;padding:32px;color:var(--text2);font-size:13px;}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;letter-spacing:.3px;}
+.badge.feed{background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent);}
+.badge.auto{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple);}
+.badge.manual{background:var(--info-bg);color:var(--info);border:1px solid var(--info);}
+.badge.pdf{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn);}
+.badge.ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green);}
+.badge.err{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);}
+
+/* ── KB entry expand ── */
+.kb-q{font-size:12.5px;font-weight:500;max-width:260px;}
+.kb-preview{font-size:11.5px;color:var(--text2);max-height:40px;overflow:hidden;cursor:pointer;transition:max-height .2s;max-width:320px;}
+.kb-preview.exp{max-height:200px;}
+.kb-triggers{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;max-width:280px;}
+.kb-trig{font-size:9.5px;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:1px 6px;color:var(--text2);}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:5px;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;cursor:pointer;border-radius:7px;padding:6px 12px;transition:all .15s;border:1px solid transparent;}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn-primary:hover{background:var(--accent2);}
+.btn-danger{background:none;color:var(--text3);border-color:transparent;}
+.btn-danger:hover{color:var(--danger);background:var(--danger-bg);border-color:var(--danger);}
+.btn-secondary{background:var(--surface2);color:var(--text2);border-color:var(--border2);}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
+.btn svg{width:11px;height:11px;}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+
+/* ── Status messages ── */
+.status{font-size:12px;padding:8px 12px;border-radius:7px;margin-top:10px;display:none;}
+.status.visible{display:block;}
+.status.ok{background:var(--accent-bg);color:var(--accent);border:1px solid rgba(0,196,140,.25);}
+.status.err{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(204,64,64,.25);}
+.status.info{background:var(--info-bg);color:var(--info);border:1px solid rgba(58,143,200,.25);}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:currentColor;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:5px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Search/filter bar ── */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.filter-inp{flex:1;min-width:180px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'Inter',sans-serif;font-size:12.5px;padding:7px 10px;outline:none;transition:border-color .2s;}
+.filter-inp:focus{border-color:var(--accent);}
+.filter-inp::placeholder{color:var(--text3);}
+.filter-sel{background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'Inter',sans-serif;font-size:12.5px;padding:7px 10px;outline:none;cursor:pointer;}
+.count-tag{font-size:11px;color:var(--text3);white-space:nowrap;}
+
+/* ── Connection indicators ── */
+.conn-bar{display:flex;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.conn-item{display:flex;align-items:center;gap:5px;font-size:11.5px;}
+.conn-dot{width:7px;height:7px;border-radius:50%;}
+.conn-dot.ok{background:var(--accent);}
+.conn-dot.err{background:var(--danger);}
+.conn-dot.unk{background:var(--text3);}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .topbar,.nav{padding-left:14px;padding-right:14px;}
+  .main{padding:16px 14px;}
+  .stats-grid{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Login Screen ── -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <div class="login-icon">
+      <svg viewBox="0 0 20 20" fill="none"><polyline points="2,14 6,9 10,11 14,5 18,7" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h1>GrowwBot Admin</h1>
+    <p>Enter your admin password to continue</p>
+    <input class="inp" type="password" id="pwdInput" placeholder="Admin password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    <button class="btn-login" onclick="doLogin()">Sign In</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ── Admin App ── -->
+<div class="app" id="adminApp">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-l">
+      <div class="topbar-icon">
+        <svg viewBox="0 0 20 20" fill="none"><polyline points="2,14 6,9 10,11 14,5 18,7" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="topbar-title">Groww<span>Bot</span> Admin</span>
+      <span class="ver-tag">v10.0</span>
+    </div>
+    <div class="topbar-r">
+      <button class="tbtn" onclick="toggleTheme()">
+        <svg id="themeIcon" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4.22 1.78a1 1 0 011.42 1.42l-.71.7a1 1 0 11-1.41-1.41l.7-.71zM18 9a1 1 0 110 2h-1a1 1 0 110-2h1zM3 10a1 1 0 01-1 1H1a1 1 0 110-2h1a1 1 0 011 1zm6-4a4 4 0 100 8 4 4 0 000-8z"/></svg>
+        Theme
+      </button>
+      <a href="/" class="tbtn">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.354 1.146a.5.5 0 0 0-.708 0l-6 6A.5.5 0 0 0 1.5 7.5v7a.5.5 0 0 0 .5.5h4.5a.5.5 0 0 0 .5-.5v-4h2v4a.5.5 0 0 0 .5.5H14a.5.5 0 0 0 .5-.5v-7a.5.5 0 0 0-.146-.354L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293zM2.5 14V7.707l5.5-5.5 5.5 5.5V14H10v-4a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5v4z"/></svg>
+        GrowwBot
+      </a>
+      <button class="tbtn danger" onclick="doLogout()">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0z"/><path d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708z"/></svg>
+        Logout
+      </button>
+    </div>
+  </div>
+
+  <!-- Nav tabs -->
+  <div class="nav">
+    <div class="nav-tab active" onclick="switchTab('dashboard',this)">Dashboard</div>
+    <div class="nav-tab" onclick="switchTab('pdfs',this)">PDFs <span class="nav-badge" id="navPdfCount">0</span></div>
+    <div class="nav-tab" onclick="switchTab('kb',this)">Knowledge Base <span class="nav-badge" id="navKbCount">0</span></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- ── Dashboard Tab ── -->
+    <div id="tab-dashboard">
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card green"><div class="stat-label">PDFs Uploaded</div><div class="stat-val" id="statPdfCount">—</div><div class="stat-sub" id="statChunks">Loading...</div></div>
+        <div class="stat-card blue"><div class="stat-label">KB Entries</div><div class="stat-val" id="statKbCount">—</div><div class="stat-sub" id="statHits">Loading...</div></div>
+        <div class="stat-card purple"><div class="stat-label">Fed Entries</div><div class="stat-val" id="statFed">—</div><div class="stat-sub">Manually trained Q&amp;A</div></div>
+        <div class="stat-card warn"><div class="stat-label">Auto-Learned</div><div class="stat-val" id="statAuto">—</div><div class="stat-sub">AI generated &amp; stored</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-hdr">
+          <h2>System Status</h2>
+          <button class="btn btn-secondary" onclick="loadStats()">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z"/></svg>
+            Refresh
+          </button>
+        </div>
+        <div class="conn-bar" id="connBar">
+          <div class="conn-item"><div class="conn-dot unk" id="dotDb"></div> Neon Postgres</div>
+          <div class="conn-item"><div class="conn-dot unk" id="dotRedis"></div> Upstash Redis</div>
+          <div class="conn-item"><div class="conn-dot unk" id="dotGroq"></div> Groq API</div>
+        </div>
+        <div class="section-body">
+          <p style="font-size:12.5px;color:var(--text2);line-height:1.7;">
+            GrowwBot uses <strong style="color:var(--text)">Neon Postgres</strong> for PDF knowledge storage and 
+            <strong style="color:var(--text)">Upstash Redis</strong> for self-learned Q&amp;A entries. 
+            Upload PDFs in the <strong style="color:var(--accent)">PDFs</strong> tab — they are parsed server-side, 
+            chunked, and indexed immediately. The AI searches both sources on every query.
+          </p>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-hdr"><h2>Quick Upload PDF</h2></div>
+        <div class="section-body">
+          <div class="upload-zone" id="quickDrop" onclick="document.getElementById('quickFileInput').click()" ondragover="onDragOver(event,'quickDrop')" ondragleave="onDragLeave('quickDrop')" ondrop="onDrop(event,'quickDrop')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V8m0 0-3 3m3-3 3 3M20 16.7A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <h3>Click to upload or drag &amp; drop</h3>
+            <p>PDF files only &bull; Max 14MB &bull; Text extracted server-side</p>
+          </div>
+          <input type="file" id="quickFileInput" accept=".pdf" style="display:none" onchange="handleFileSelect(event)">
+          <div class="upload-progress" id="uploadProgress">
+            <div style="font-size:12.5px;font-weight:500;" id="uploadFileName">Uploading...</div>
+            <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+            <div class="progress-text" id="progressText">Sending to server...</div>
+          </div>
+          <div class="status" id="uploadStatus"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PDFs Tab ── -->
+    <div id="tab-pdfs" style="display:none">
+      <div class="section">
+        <div class="section-hdr">
+          <h2>Uploaded PDFs</h2>
+          <div class="section-hdr-r">
+            <button class="btn btn-secondary" onclick="loadPdfs()">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary" onclick="document.getElementById('quickFileInput').click()">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z"/></svg>
+              Upload PDF
+            </button>
+          </div>
+        </div>
+        <div class="section-body" id="pdfTableWrap">
+          <div class="tbl-empty">Loading PDFs...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Knowledge Base Tab ── -->
+    <div id="tab-kb" style="display:none">
+      <div class="section">
+        <div class="section-hdr">
+          <h2>Knowledge Base (Upstash Redis)</h2>
+          <div class="section-hdr-r">
+            <button class="btn btn-secondary" onclick="loadKB()">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z"/></svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+        <div class="section-body">
+          <div class="filter-bar">
+            <input class="filter-inp" type="text" id="kbSearch" placeholder="Search by question or answer..." oninput="filterKBTable()">
+            <select class="filter-sel" id="kbSourceFilter" onchange="filterKBTable()">
+              <option value="all">All sources</option>
+              <option value="feed">Fed only</option>
+              <option value="auto">Auto-learned only</option>
+              <option value="manual">Manual only</option>
+            </select>
+            <span class="count-tag" id="kbCountTag">— entries</span>
+          </div>
+          <div id="kbTableWrap"><div class="tbl-empty">Loading knowledge base...</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── Auth ────────────────────────────────────────────────────────────────────
+var TOKEN = '';
+
+function doLogin() {
+  var pwd = document.getElementById('pwdInput').value.trim();
+  if (!pwd) { showLoginErr('Enter your password.'); return; }
+  // Test the password against the API
+  fetch('/api/admin?action=stats', {
+    headers: { 'Authorization': 'Bearer ' + pwd }
+  }).then(function(r) {
+    if (r.status === 401) {
+      showLoginErr('Incorrect password. Try again.');
+    } else if (r.ok) {
+      TOKEN = pwd;
+      localStorage.setItem('gb_admin_token', pwd);
+      document.getElementById('loginWrap').style.display = 'none';
+      document.getElementById('adminApp').classList.add('visible');
+      initApp(r.json());
+    } else {
+      r.json().then(function(d){ showLoginErr(d.error || 'Login failed.'); });
+    }
+  }).catch(function(e) { showLoginErr('Connection error: ' + e.message); });
+}
+
+function showLoginErr(msg) {
+  var el = document.getElementById('loginErr');
+  el.textContent = msg;
+  setTimeout(function(){ el.textContent = ''; }, 3000);
+}
+
+function doLogout() {
+  TOKEN = '';
+  localStorage.removeItem('gb_admin_token');
+  document.getElementById('adminApp').classList.remove('visible');
+  document.getElementById('loginWrap').style.display = 'flex';
+  document.getElementById('pwdInput').value = '';
+}
+
+// Try auto-login from saved token
+(function() {
+  var t = document.documentElement.getAttribute('data-theme') || localStorage.getItem('gb-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  var saved = localStorage.getItem('gb_admin_token');
+  if (saved) {
+    fetch('/api/admin?action=stats', { headers: { 'Authorization': 'Bearer ' + saved } })
+      .then(function(r) {
+        if (r.ok) {
+          TOKEN = saved;
+          document.getElementById('loginWrap').style.display = 'none';
+          document.getElementById('adminApp').classList.add('visible');
+          initApp(r.json());
+        }
+      }).catch(function(){});
+  }
+})();
+
+// ── Theme ───────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  var c = document.documentElement.getAttribute('data-theme');
+  var n = c === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', n);
+  localStorage.setItem('gb-theme', n);
+}
+
+// ── API helper ───────────────────────────────────────────────────────────────
+function api(path, opts) {
+  var options = opts || {};
+  options.headers = options.headers || {};
+  options.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+    options.headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(options.body);
+  }
+  return fetch('/api/admin' + path, options);
+}
+
+// ── Tab navigation ───────────────────────────────────────────────────────────
+var currentTab = 'dashboard';
+function switchTab(name, el) {
+  document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  document.querySelectorAll('[id^="tab-"]').forEach(function(t) { t.style.display = 'none'; });
+  document.getElementById('tab-' + name).style.display = '';
+  currentTab = name;
+  if (name === 'pdfs') loadPdfs();
+  if (name === 'kb') loadKB();
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+function initApp(statsPromise) {
+  statsPromise.then(function(d) { applyStats(d); });
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    var r = await api('?action=stats');
+    var d = await r.json();
+    applyStats(d);
+  } catch(e) {}
+}
+
+function applyStats(d) {
+  if (!d) return;
+  var pdfs = d.pdfs || {};
+  var kb = d.kb || {};
+  document.getElementById('statPdfCount').textContent = pdfs.count || 0;
+  document.getElementById('statChunks').textContent = (pdfs.totalChunks || 0) + ' text sections indexed';
+  document.getElementById('statKbCount').textContent = kb.count || 0;
+  document.getElementById('statHits').textContent = (kb.totalHits || 0) + ' total hits';
+  document.getElementById('statFed').textContent = (kb.bySource && kb.bySource.feed) || 0;
+  document.getElementById('statAuto').textContent = (kb.bySource && kb.bySource.auto) || 0;
+  document.getElementById('navPdfCount').textContent = pdfs.count || 0;
+  document.getElementById('navKbCount').textContent = kb.count || 0;
+  if ((pdfs.count || 0) > 0) document.getElementById('navPdfCount').classList.add('accent');
+  if ((kb.count || 0) > 0) document.getElementById('navKbCount').classList.add('accent');
+  // Connection dots
+  setDot('dotDb', d.dbConnected);
+  setDot('dotRedis', d.upstashConnected);
+  setDot('dotGroq', true); // Groq is stateless — assume OK if other things work
+}
+
+function setDot(id, ok) {
+  var el = document.getElementById(id);
+  el.className = 'conn-dot ' + (ok ? 'ok' : 'err');
+}
+
+// ── PDF Upload ────────────────────────────────────────────────────────────────
+function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('drag'); }
+function onDragLeave(id) { document.getElementById(id).classList.remove('drag'); }
+function onDrop(e, id) { e.preventDefault(); document.getElementById(id).classList.remove('drag'); var f = e.dataTransfer.files[0]; if (f) uploadPdf(f); }
+function handleFileSelect(e) { var f = e.target.files[0]; if (f) uploadPdf(f); e.target.value = ''; }
+
+async function uploadPdf(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) { showStatus('uploadStatus', 'err', 'Please upload a PDF file.'); return; }
+  if (file.size > 14 * 1024 * 1024) { showStatus('uploadStatus', 'err', 'File too large. Max 14MB.'); return; }
+
+  var prog = document.getElementById('uploadProgress');
+  var progBar = document.getElementById('progressBar');
+  var progText = document.getElementById('progressText');
+  document.getElementById('uploadFileName').textContent = file.name;
+  prog.classList.add('visible');
+  progBar.style.width = '15%';
+  progText.textContent = 'Sending to server...';
+  hideStatus('uploadStatus');
+
+  try {
+    var docId = 'doc_' + Date.now();
+    var form = new FormData();
+    form.append('file', file, file.name);
+    form.append('docId', docId);
+
+    progBar.style.width = '40%';
+    progText.textContent = 'Extracting text from PDF...';
+
+    var r = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TOKEN },
+      body: form
+    });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    progBar.style.width = '100%';
+    progText.textContent = 'Done!';
+
+    showStatus('uploadStatus', 'ok',
+      '&#10003; "' + escH(file.name) + '" uploaded successfully &mdash; ' +
+      d.pages + ' pages, ' + d.chunks + ' sections indexed. AI will use this immediately.'
+    );
+
+    setTimeout(function() {
+      prog.classList.remove('visible');
+      progBar.style.width = '0%';
+    }, 1500);
+
+    // Refresh stats and PDF list
+    loadStats();
+    if (currentTab === 'pdfs') loadPdfs();
+
+  } catch(e) {
+    prog.classList.remove('visible');
+    progBar.style.width = '0%';
+    showStatus('uploadStatus', 'err', '&#10060; ' + e.message);
+  }
+}
+
+// ── PDF List ──────────────────────────────────────────────────────────────────
+var pdfData = [];
+async function loadPdfs() {
+  document.getElementById('pdfTableWrap').innerHTML = '<div class="tbl-empty"><span class="spinner"></span> Loading PDFs...</div>';
+  try {
+    var r = await api('?action=pdfs');
+    var d = await r.json();
+    pdfData = d.docs || [];
+    renderPdfTable();
+  } catch(e) {
+    document.getElementById('pdfTableWrap').innerHTML = '<div class="tbl-empty" style="color:var(--danger)">Error: ' + escH(e.message) + '</div>';
+  }
+}
+
+function renderPdfTable() {
+  var el = document.getElementById('pdfTableWrap');
+  if (!pdfData.length) {
+    el.innerHTML = '<div class="tbl-empty">No PDFs uploaded yet. Upload one to get started.</div>';
+    return;
+  }
+  var rows = pdfData.map(function(d) {
+    var dt = new Date(d.uploaded_at).toLocaleString('en-IN', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    var size = d.size_bytes ? (d.size_bytes / 1024).toFixed(0) + ' KB' : '—';
+    return '<tr>' +
+      '<td><strong>' + escH(d.name) + '</strong></td>' +
+      '<td><span class="badge pdf">' + (d.page_count || '?') + ' pages</span></td>' +
+      '<td>' + (d.chunk_count || 0) + ' sections</td>' +
+      '<td>' + size + '</td>' +
+      '<td>' + dt + '</td>' +
+      '<td><button class="btn btn-danger" data-doc-id="' + escH(d.id) + '" data-doc-name="' + escH(d.name) + '" onclick="deletePdfBtn(this)">Delete</button></td>' +
+    '</tr>';
+  }).join('');
+  el.innerHTML = '<div class="tbl-wrap"><table><thead><tr><th>File Name</th><th>Pages</th><th>Chunks</th><th>Size</th><th>Uploaded</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function deletePdfBtn(btn) {
+  var docId = btn.getAttribute('data-doc-id');
+  var name = btn.getAttribute('data-doc-name');
+  deletePdf(docId, name);
+}
+async function deletePdf(docId, name) {
+  if (!confirm('Delete "' + name + '"? This will remove all indexed sections from Postgres.')) return;
+  try {
+    var r = await api('?action=pdf', { method: 'DELETE', body: { docId: docId } });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    pdfData = pdfData.filter(function(p) { return p.id !== docId; });
+    renderPdfTable();
+    loadStats();
+  } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+// ── Knowledge Base ────────────────────────────────────────────────────────────
+var kbData = [], kbFiltered = [];
+async function loadKB() {
+  document.getElementById('kbTableWrap').innerHTML = '<div class="tbl-empty"><span class="spinner"></span> Loading knowledge base...</div>';
+  document.getElementById('kbCountTag').textContent = '...';
+  try {
+    var r = await api('?action=kb');
+    var d = await r.json();
+    kbData = d.entries || [];
+    filterKBTable();
+  } catch(e) {
+    document.getElementById('kbTableWrap').innerHTML = '<div class="tbl-empty" style="color:var(--danger)">Error: ' + escH(e.message) + '</div>';
+  }
+}
+
+function filterKBTable() {
+  var q = (document.getElementById('kbSearch').value || '').toLowerCase();
+  var src = document.getElementById('kbSourceFilter').value;
+  kbFiltered = kbData.filter(function(e) {
+    var matchSrc = src === 'all' || e.source === src;
+    var matchQ = !q || (e.question || '').toLowerCase().includes(q) || (e.response || '').toLowerCase().includes(q);
+    return matchSrc && matchQ;
+  });
+  document.getElementById('kbCountTag').textContent = kbFiltered.length + ' ' + (kbFiltered.length === 1 ? 'entry' : 'entries');
+  renderKBTable();
+}
+
+function renderKBTable() {
+  var el = document.getElementById('kbTableWrap');
+  if (!kbFiltered.length) {
+    el.innerHTML = '<div class="tbl-empty">' + (kbData.length ? 'No entries match filter.' : 'No knowledge base entries yet. Feed Q&amp;A pairs from the main app.') + '</div>';
+    return;
+  }
+  var rows = kbFiltered.map(function(e) {
+    var srcLabel = { feed: 'Fed', auto: 'Auto', manual: 'Manual' }[e.source] || 'Auto';
+    var srcClass = { feed: 'feed', auto: 'auto', manual: 'manual' }[e.source] || 'auto';
+    var dt = e.timestamp ? new Date(e.timestamp).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'2-digit'}) : '—';
+    var triggers = (e.triggers || []).filter(function(t){ return t.includes(' '); }).slice(0, 4);
+    var trigHtml = triggers.map(function(t){ return '<span class="kb-trig">' + escH(t) + '</span>'; }).join('');
+    var preview = escH((e.response || '').slice(0, 120)) + ((e.response || '').length > 120 ? '&hellip;' : '');
+    var safeKey = escH(e._key || e.key || '');
+    return '<tr>' +
+      '<td><div class="kb-q">' + escH(e.question || e.topic || '—') + '</div><div class="kb-triggers" style="margin-top:4px">' + trigHtml + '</div></td>' +
+      '<td><span class="badge ' + srcClass + '">' + srcLabel + '</span></td>' +
+      '<td><div class="kb-preview" onclick="this.classList.toggle(\'exp\')">' + preview + '</div></td>' +
+      '<td style="text-align:center">' + (e.hits || 0) + '</td>' +
+      '<td>' + escH(e.category || '—') + '</td>' +
+      '<td>' + dt + '</td>' +
+      '<td><button class="btn btn-danger" data-kb-key="' + safeKey + '" onclick="deleteKBBtn(this)">Delete</button></td>' +
+    '</tr>';
+  }).join('');
+  el.innerHTML = '<div class="tbl-wrap"><table><thead><tr><th>Question &amp; Triggers</th><th>Source</th><th>Response (click to expand)</th><th>Hits</th><th>Category</th><th>Date</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function deleteKBBtn(btn) {
+  deleteKB(btn.getAttribute('data-kb-key'));
+}
+async function deleteKB(key) {
+  if (!confirm('Delete this knowledge entry?')) return;
+  try {
+    var r = await api('?action=kb', { method: 'DELETE', body: { key: key } });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    kbData = kbData.filter(function(e){ return (e._key || e.key) !== key; });
+    filterKBTable();
+    loadStats();
+  } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escH(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showStatus(id, type, msg) {
+  var el = document.getElementById(id);
+  el.className = 'status visible ' + type;
+  el.innerHTML = msg;
+}
+function hideStatus(id) {
+  var el = document.getElementById(id);
+  el.className = 'status';
+  el.innerHTML = '';
+}
+</script>
+</body>
+</html>
