@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>GrowwBot v9.0</title>
+<title>GrowwBot v11.0</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2300c48c'/><polyline points='4,22 10,14 16,18 22,8 28,12' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -88,6 +88,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 .src-badge.ai{background:var(--ab-bg);color:var(--ab);border:1px solid var(--ab);}
 .src-badge.auto{background:var(--pb-bg);color:var(--pb);border:1px solid var(--pb);}
 .src-badge.pdf{background:var(--bb-bg);color:var(--bb);border:1px solid var(--bb);}
+.src-badge.data-analysis{background:rgba(0,196,140,.12);color:var(--accent);border:1px solid var(--accent);font-weight:700;}
 .copy-btn{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:5px;cursor:pointer;padding:3px 8px;font-family:'Inter',sans-serif;transition:all .15s;}
 .copy-btn:hover,.copy-btn.ok{color:var(--accent);border-color:var(--accent);background:var(--accent-bg);}
 .typing-row{display:flex;padding:6px 0;gap:9px;align-items:flex-start;animation:fadeUp .2s ease;}
@@ -199,7 +200,7 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
       <svg viewBox="0 0 20 20" fill="none"><polyline points="2,14 6,9 10,11 14,5 18,7" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
     <span class="brand-name">Groww<span>Bot</span></span>
-    <span class="ver" id="verBadge">v9.0</span>
+    <span class="ver" id="verBadge">v11.0</span>
   </div>
   <div class="hdr-r">
     <span class="online"><span class="pulse"></span>Online</span>
@@ -386,14 +387,68 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
     </div>
   </div>
   <div class="input-area">
-    <div class="input-box">
-      <textarea id="inp" placeholder="Describe the customer issue..." rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
-      <button class="send-btn" id="sendBtn" onclick="sendMsg()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+    <div id="dataInputWrap" style="display:none;margin-bottom:8px;border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--surface);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--surface2);">
+        <span style="font-size:11px;font-weight:600;color:var(--accent);">&#128196; Order Data Pasted</span>
+        <button onclick="clearOrderData()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px;font-family:Inter,sans-serif;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text3)'">&#10005; Clear</button>
+      </div>
+      <div style="padding:7px 10px 4px;">
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Customer Remark / Complaint <span style="font-weight:400;color:var(--text3)">(enter "-" if no specific complaint)</span></div>
+        <textarea id="remarkInp" placeholder='e.g. "Customer says orders were rejected" or "-" if no issue' rows="2" style="width:100%;background:none;border:1px solid var(--border2);border-radius:6px;outline:none;font-family:Inter,sans-serif;font-size:12.5px;color:var(--text);resize:none;padding:6px 8px;min-height:36px;max-height:80px;line-height:1.5;transition:border-color .2s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'" oninput="autoResizeEl(this)"></textarea>
+      </div>
     </div>
-    <div class="input-hint">Enter to send &nbsp;&#xB7;&nbsp; Shift+Enter for new line</div>
+    <div class="input-box" id="mainInputBox">
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+        <textarea id="inp" placeholder="Describe the customer issue, or paste order data below..." rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+        <div id="pasteHint" style="font-size:10.5px;color:var(--text3);padding:0 1px;">Tip: Paste order data (plain text) and GrowwBot will analyse it automatically.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <button class="send-btn" id="sendBtn" onclick="sendMsg()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+        <button id="pasteDataBtn" title="Paste order data for analysis" onclick="openDataInput()" style="width:30px;height:24px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text3);transition:all .15s;font-size:11px;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'">&#128196;</button>
+      </div>
+    </div>
+    <div class="input-hint">Enter to send &nbsp;&#xB7;&nbsp; Shift+Enter for new line &nbsp;&#xB7;&nbsp; &#128196; to paste order data</div>
   </div>
 </main>
 </div>
+<!-- Data Paste Modal -->
+<div class="overlay hidden" id="dataOverlay" onclick="closeIfBg(event,'dataOverlay')">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-hdr">
+      <h2>&#128196; Paste Order Data for Analysis</h2>
+      <button class="modal-close" onclick="closeOverlay('dataOverlay')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-box">
+        <strong>How it works:</strong> Paste the customer's order data in plain text format — order details, rejection reasons, trade history, etc. GrowwBot will analyse the data and the remark to draft a precise customer-ready reply.
+      </div>
+      <div class="f-group">
+        <label class="f-label">Order Data <span style="color:var(--danger)">*</span></label>
+        <textarea class="f-input" id="orderDataInp" rows="10" style="min-height:200px;font-family:JetBrains Mono,monospace;font-size:12px;line-height:1.6;" placeholder="Paste order data here in any plain text format...
+
+Example:
+Order ID: GMKFO123
+Symbol: SENSEX 09 Apr 77300 Call
+Status: REJECTED
+Reason: RMS:Margin Exceeds, Required:5099.00, Available:4676.64
+Time: 09:20 AM"></textarea>
+      </div>
+      <div class="f-group">
+        <label class="f-label">Customer Remark / Complaint <span style="color:var(--text3);font-weight:400">(enter "-" if no specific complaint)</span></label>
+        <textarea class="f-input" id="orderRemarkInp" rows="2" style="min-height:52px;" placeholder='e.g. "Customer says orders were rejected but money was deducted" or "-"'></textarea>
+      </div>
+      <div class="f-group">
+        <label class="f-label">Additional Context <span style="color:var(--text3);font-weight:400">(optional)</span></label>
+        <textarea class="f-input" id="orderContextInp" rows="2" style="min-height:44px;" placeholder="Any extra context for GrowwBot e.g. customer is very upset, first time issue, etc."></textarea>
+      </div>
+      <div class="f-row">
+        <button class="btn-p" onclick="submitOrderData()">Analyse &amp; Draft Reply</button>
+        <button class="btn-s" onclick="closeOverlay('dataOverlay')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Mobile Drawer -->
 <div class="drawer-overlay" id="dOverlay" onclick="closeDrawer()"></div>
 <div class="drawer" id="drawer">
@@ -401,7 +456,7 @@ textarea.f-input{resize:vertical;}select.f-input{cursor:pointer;}
     <div class="brand">
       <div class="brand-icon" style="width:24px;height:24px;border-radius:6px;"><svg viewBox="0 0 20 20" fill="none" style="width:12px;height:12px;"><polyline points="2,14 6,9 10,11 14,5 18,7" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <span class="brand-name" style="font-size:13px;">Groww<span>Bot</span></span>
-      <span class="ver" style="font-size:8px;">v9.0</span>
+      <span class="ver" style="font-size:8px;">v11.0</span>
     </div>
     <button class="drawer-close" onclick="closeDrawer()">&#10005;</button>
   </div>
@@ -557,7 +612,7 @@ function doCopy(btn,raw){
 }
 
 // ── Chat state ─────────────────────────────────────────────────────────────
-var chatHistory=[],busy=false;
+var chatHistory=[],busy=false,currentOrderData=null,currentRemark=null;
 
 function appendMsg(role,rawText,src){
   document.getElementById('welcome')&&document.getElementById('welcome').remove();
@@ -569,7 +624,7 @@ function appendMsg(role,rawText,src){
   if(role==='bot'){
     var sid='_'+Date.now()+'_'+Math.random().toString(36).slice(2);
     window[sid]=rawText;
-    var labels={learned:'&#10022; Learned',builtin:'&#9670; Built-in',ai:'&#9672; AI',auto:'&#9679; Auto',pdf:'&#9671; PDF'};
+    var labels={learned:'&#10022; Learned',builtin:'&#9670; Built-in',ai:'&#9672; AI',auto:'&#9679; Auto',pdf:'&#9671; PDF','data-analysis':'&#128196; Data Analysis'};
     var badge=labels[src]?'<span class="src-badge '+src+'">'+labels[src]+'</span>':'';
     meta='<button class="copy-btn" onclick="doCopy(this,window[\''+sid+'\'])">'+CPY+' Copy</button>'+badge+meta;
   }
@@ -582,28 +637,110 @@ function showTyping(){
   r.innerHTML='<div class="av" style="background:var(--accent);color:#fff;font-size:10px;font-weight:600">GB</div><div class="typing-bub"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
   c.appendChild(r);c.scrollTop=c.scrollHeight;
 }
-function removeTyping(){var t=document.getElementById('typing');if(t)t.remove();}
+function removeTyping(){var t=document.get// ── Data mode state ────────────────────────────────────────────────────────
+function openDataInput(){
+  document.getElementById('orderDataInp').value='';
+  document.getElementById('orderRemarkInp').value='';
+  document.getElementById('orderContextInp').value='';
+  openOverlay('dataOverlay');
+  setTimeout(function(){document.getElementById('orderDataInp').focus();},100);
+}
+
+function submitOrderData(){
+  var data=document.getElementById('orderDataInp').value.trim();
+  var remark=document.getElementById('orderRemarkInp').value.trim()||'-';
+  var context=document.getElementById('orderContextInp').value.trim();
+  if(!data){alert('Please paste some order data first.');return;}
+  currentOrderData=data;
+  currentRemark=remark;
+  closeOverlay('dataOverlay');
+  // Show the data strip above input
+  document.getElementById('dataInputWrap').style.display='block';
+  document.getElementById('remarkInp').value=remark;
+  document.getElementById('pasteHint').style.display='none';
+  // Pre-fill context if given
+  if(context){document.getElementById('inp').value=context;autoResize(document.getElementById('inp'));}
+  document.getElementById('inp').focus();
+  // Show badge on paste button
+  document.getElementById('pasteDataBtn').style.background='var(--accent-bg)';
+  document.getElementById('pasteDataBtn').style.borderColor='var(--accent)';
+  document.getElementById('pasteDataBtn').style.color='var(--accent)';
+}
+
+function clearOrderData(){
+  currentOrderData=null;currentRemark=null;
+  document.getElementById('dataInputWrap').style.display='none';
+  document.getElementById('pasteHint').style.display='block';
+  document.getElementById('pasteDataBtn').style.background='var(--surface2)';
+  document.getElementById('pasteDataBtn').style.borderColor='var(--border2)';
+  document.getElementById('pasteDataBtn').style.color='var(--text3)';
+}
+
+function autoResizeEl(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,80)+'px';}
 
 async function sendMsg(){
   if(busy)return;
   var inp=document.getElementById('inp'),text=inp.value.trim();
-  if(!text)return;
+  var hasData=!!(currentOrderData&&currentOrderData.trim());
+  if(!text&&!hasData)return;
+
+  // Build display label
+  var displayText=text||(hasData?'[Analysing order data...]':'');
   inp.value='';inp.style.height='auto';
   busy=true;document.getElementById('sendBtn').disabled=true;
-  appendMsg('user',text);
-  chatHistory.push({role:'user',content:text});
+
+  // User bubble
+  if(hasData){
+    var label='';
+    var remark=document.getElementById('remarkInp').value.trim()||currentRemark||'-';
+    label='<strong style="color:var(--accent)">Order Data pasted</strong>';
+    if(remark&&remark!=='-') label+='<br><span style="color:var(--text2);font-size:12px">Remark: '+escHtml(remark)+'</span>';
+    if(text) label+='<br><span style="color:var(--text2);font-size:12px">'+escHtml(text)+'</span>';
+    appendMsgHTML('user',label);
+  } else {
+    appendMsg('user',text);
+  }
+
+  chatHistory.push({role:'user',content:displayText+(hasData?' [with order data]':'')});
   showTyping();
+
   try{
-    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:chatHistory.slice(-6)})});
+    var body={chatHistory:chatHistory.slice(-4)};
+    if(hasData){
+      body.orderData=currentOrderData;
+      body.remark=document.getElementById('remarkInp').value.trim()||currentRemark||'-';
+      if(text) body.message=text;
+    } else {
+      body.message=text;
+    }
+    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var d=await r.json();
     removeTyping();
     var reply=d.error?'Error: '+d.error:d.reply;
-    var src=d.autoLearned?'auto':(d.source||'ai');
+    var src=d.source||'ai';
+    if(d.mode==='data') src='data-analysis';
     appendMsg('bot',reply,src);
-    if(!d.error){chatHistory.push({role:'assistant',content:reply});if(chatHistory.length>20)chatHistory=chatHistory.slice(-20);}
+    if(!d.error){
+      chatHistory.push({role:'assistant',content:reply});
+      if(chatHistory.length>20)chatHistory=chatHistory.slice(-20);
+    }
+    // Clear data after successful analysis
+    if(hasData&&!d.error) clearOrderData();
   }catch(e){removeTyping();appendMsg('bot','Connection error. Please try again.');}
   busy=false;document.getElementById('sendBtn').disabled=false;
   document.getElementById('inp').focus();
+}
+
+function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function appendMsgHTML(role,html){
+  document.getElementById('welcome')&&document.getElementById('welcome').remove();
+  var c=document.getElementById('msgs'),row=document.createElement('div');
+  row.className='msg-row '+role;
+  var meta='<span class="msg-time">'+ts()+'</span>';
+  row.innerHTML='<div class="av">You</div><div class="msg-body"><div class="bubble" style="font-size:12.5px">'+html+'</div><div class="msg-meta" style="flex-direction:row-reverse">'+meta+'</div></div>';
+  row.style.flexDirection='row-reverse';
+  c.appendChild(row);c.scrollTop=c.scrollHeight;
+}document.getElementById('inp').focus();
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────────
